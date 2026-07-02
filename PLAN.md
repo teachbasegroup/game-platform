@@ -112,15 +112,15 @@ Keep the existing editorial look and systematize it:
 | Step | What | Time |
 |---|---|---|
 | 0 | Accounts: GitHub, Netlify, Supabase | ✓ done |
-| 1 | Folder structure + GitHub repo + first Netlify deploy → live URL | 30 min |
+| 1 | Folder structure + GitHub repo + first Netlify deploy → live URL | ✓ done |
 | 2 | Supabase tables per data model, migrate all content, app reads from DB | 1–1.5 h |
-| 3 | EN/DE toggle + translate all existing content | 45 min |
-| 4 | Instructions layout (Setup / How to play / Tip), reshuffle bug, design tokens, beamer-friendly card size, DESIGN.md | 45 min |
+| 3 | EN/DE toggle + translate all existing content | ✓ done (in code; moves to DB in step 2) |
+| 4 | Instructions layout (Setup / How to play / Tip), reshuffle bug, design tokens, beamer-friendly card size, DESIGN.md | ✓ done |
 | 5 | **Edit mode (committed):** team login, add/edit games & cards, draft → publish | 1.5–2 h |
 | 6 | *If time:* DeepL auto-translate button in the edit mode | 30 min |
 
-Steps 1–5 are the committed scope (~4.5–5 h). If the day runs short, step 5 completes in
-the immediate next session — until then the Supabase dashboard covers content editing.
+Remaining scope: steps 2, 5, 6 (~2.5–3 h; needs the Supabase login in the browser).
+Until the edit mode exists, the Supabase dashboard covers content editing.
 
 Known content gaps (fill anytime once live): "Open Questions" has 1 card,
 "Get-to-know" category is empty.

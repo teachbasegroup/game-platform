@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TeachBase Game Library</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 5 1'%3E%3Crect width='1' height='1' fill='%23FF3333'/%3E%3Crect x='1' width='1' height='1' fill='%230066FF'/%3E%3Crect x='2' width='1' height='1' fill='%23FFCC00'/%3E%3Crect x='3' width='1' height='1' fill='%2300AA44'/%3E%3Crect x='4' width='1' height='1' fill='%239944CC'/%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
@@ -11,107 +12,400 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useMemo } = React;
+const { useState, useEffect, useMemo, useContext, createContext } = React;
 
+/* ═══ DESIGN TOKENS — see DESIGN.md. Build every component from these. ═══ */
+const COLOR = {
+  red: "#FF3333", blue: "#0066FF", yellow: "#FFCC00", green: "#00AA44", purple: "#9944CC",
+  ink: "#1a1a1a", body: "#444444", muted: "#888888", faint: "#CCCCCC",
+  line: "#E0E0E0", hairline: "#F0F0F0", wash: "#FAFAFA",
+};
+const FONT = {
+  serif: "Georgia, 'Times New Roman', serif",
+  mono: "'Courier New', Courier, monospace",
+};
+/* type scale — no other sizes */
+const TYPE = { label: 11, meta: 13, body: 15, h2: 20, h1: 24 };
+/* spacing: multiples of 8 only */
 
+const AGE_COLORS = { "6-8": COLOR.red, "9-12": COLOR.blue, "all": COLOR.yellow };
+
+/* ═══ UI STRINGS ═══ */
+const UI = {
+  libraryTitle: { en: "Game Library", de: "Spielebibliothek" },
+  back: { en: "back", de: "zurück" },
+  allCategories: { en: "all categories", de: "alle Kategorien" },
+  age: { en: "Age", de: "Alter" },
+  all: { en: "All", de: "Alle" },
+  allAges: { en: "All ages", de: "Alle Altersgruppen" },
+  nextCard: { en: "Next card", de: "Nächste Karte" },
+  reshuffle: { en: "Reshuffle", de: "Neu mischen" },
+  noPrompts: { en: "No cards for this age range yet.", de: "Für diese Altersgruppe gibt es noch keine Karten." },
+  noGames: { en: "No games yet.", de: "Noch keine Spiele." },
+  empty: { en: "empty", de: "leer" },
+  cards: { en: "cards", de: "Karten" },
+  activity: { en: "activity", de: "Aktivität" },
+  hint: { en: "Hint", de: "Hinweis" },
+  tip: { en: "Tip", de: "Tipp" },
+  setup: { en: "Setup", de: "Vorbereitung" },
+  howToPlay: { en: "How to play", de: "So geht's" },
+};
+
+const TAGS = {
+  "break": { en: "break", de: "Pause" },
+  "waiting": { en: "waiting", de: "Wartezeit" },
+  "trickle-in": { en: "trickle-in", de: "Ankommen" },
+  "cooldown": { en: "cooldown", de: "Abkühlen" },
+  "team builder": { en: "team builder", de: "Teambuilding" },
+  "get-to-know": { en: "get-to-know", de: "Kennenlernen" },
+  "in-class": { en: "in-class", de: "im Unterricht" },
+  "energy burn": { en: "energy burn", de: "Energie abbauen" },
+  "focus reset": { en: "focus reset", de: "Fokus-Reset" },
+  "transition": { en: "transition", de: "Übergang" },
+};
+
+/* ═══ CONTENT — moves to Supabase in build step 2; keep shape identical to data model ═══ */
 const CATEGORIES = [
   {
-    id: "prompt", title: "Q&A / Prompt Games", desc: "Draw a card, read it aloud.", color: "#FFCC00",
+    id: "prompt",
+    title: { en: "Q&A / Prompt Games", de: "Frage- & Kartenspiele" },
+    desc: { en: "Draw a card, read it aloud.", de: "Karte ziehen, laut vorlesen." },
+    color: COLOR.yellow,
     games: [
       {
-        id: "would-you-rather", title: "Would You Rather", subtitle: "Engineering Edition", type: "deck",
-        meta: { size: "any", time: "2-10 min", materials: "nothing" },
+        id: "would-you-rather",
+        title: { en: "Would You Rather", de: "Würdest du lieber …" },
+        subtitle: { en: "Engineering Edition", de: "Engineering-Edition" },
+        type: "deck",
+        meta: {
+          size: { en: "any", de: "beliebig" },
+          time: { en: "2–10 min", de: "2–10 Min" },
+          materials: { en: "nothing", de: "nichts" },
+        },
         tags: ["break", "waiting", "trickle-in", "cooldown"],
-        rules: "Read the prompt aloud. Kids choose A or B — move to sides of the room, raise hands, or shout. Ask 1-2 kids WHY. Keep it fast, one prompt per minute.",
-        tip: "If it gets rowdy, switch to silent vote — eyes closed, raise hands. Works great post-lunch.",
+        setup: {
+          en: "Nothing to prepare. Decide how kids vote: move to the two sides of the room, raise hands, or shout.",
+          de: "Nichts vorzubereiten. Entscheide, wie abgestimmt wird: auf zwei Seiten des Raums stellen, Hand heben oder rufen.",
+        },
+        how: {
+          en: "Read the prompt aloud. Kids choose A or B. Ask 1–2 kids WHY. Keep it fast — about one prompt per minute.",
+          de: "Lies die Frage laut vor. Die Kinder wählen A oder B. Frag 1–2 Kinder nach dem WARUM. Halt das Tempo hoch — etwa eine Frage pro Minute.",
+        },
+        tip: {
+          en: "If it gets rowdy, switch to silent vote — eyes closed, raise hands. Works great post-lunch.",
+          de: "Wenn es zu wild wird: stille Abstimmung — Augen zu, Hand heben. Funktioniert super nach dem Mittagessen.",
+        },
         prompts: [
-          { text: "Have a robot dog that only barks in music\n— or —\nA cat that glows in the dark", age: "6-8" },
-          { text: "Have shoes that make you jump super high\n— or —\nGloves that make you super strong", age: "6-8" },
-          { text: "Live in a treehouse with a slide to the ground\n— or —\nLive underwater in a bubble house", age: "6-8" },
-          { text: "Have a backpack that never runs out of snacks\n— or —\nA pencil that draws things that become real", age: "6-8" },
-          { text: "Be able to fly but only 20cm off the ground\n— or —\nBe invisible but only when nobody is looking", age: "9-12" },
-          { text: "Have a 3D printer that takes 1 week per print\n— or —\nA printer that prints money but only 1 cent at a time", age: "9-12" },
-          { text: "Know every programming language but forget how to write by hand\n— or —\nWrite beautifully but never use a computer again", age: "9-12" },
-          { text: "Have a time machine that only goes 5 minutes into the future\n— or —\nA teleporter that only works to places you've already been", age: "9-12" },
-          { text: "Build anything but it falls apart after one day\n— or —\nBuild only one thing ever but it lasts forever", age: "all" },
-          { text: "Have a robot that does your homework but sometimes gets it wrong\n— or —\nDo all homework yourself but finish in half the time", age: "all" },
-          { text: "Invent something that makes people laugh every day\n— or —\nInvent something that saves one person's life once", age: "all" },
-          { text: "Have a bike that drives itself but only at walking speed\n— or —\nA skateboard that goes super fast but you can't steer it", age: "all" },
+          {
+            text: {
+              en: "Have a robot dog that only barks in music\n— or —\nA cat that glows in the dark",
+              de: "Einen Roboterhund haben, der nur in Musik bellt\n— oder —\nEine Katze, die im Dunkeln leuchtet",
+            }, age: "6-8",
+          },
+          {
+            text: {
+              en: "Have shoes that make you jump super high\n— or —\nGloves that make you super strong",
+              de: "Schuhe haben, mit denen du super hoch springen kannst\n— oder —\nHandschuhe, die dich super stark machen",
+            }, age: "6-8",
+          },
+          {
+            text: {
+              en: "Live in a treehouse with a slide to the ground\n— or —\nLive underwater in a bubble house",
+              de: "In einem Baumhaus mit Rutsche bis zum Boden wohnen\n— oder —\nUnter Wasser in einem Blasenhaus wohnen",
+            }, age: "6-8",
+          },
+          {
+            text: {
+              en: "Have a backpack that never runs out of snacks\n— or —\nA pencil that draws things that become real",
+              de: "Einen Rucksack haben, in dem die Snacks nie ausgehen\n— oder —\nEinen Stift, dessen Zeichnungen echt werden",
+            }, age: "6-8",
+          },
+          {
+            text: {
+              en: "Be able to fly but only 20cm off the ground\n— or —\nBe invisible but only when nobody is looking",
+              de: "Fliegen können, aber nur 20 cm über dem Boden\n— oder —\nUnsichtbar sein, aber nur wenn niemand hinschaut",
+            }, age: "9-12",
+          },
+          {
+            text: {
+              en: "Have a 3D printer that takes 1 week per print\n— or —\nA printer that prints money but only 1 cent at a time",
+              de: "Einen 3D-Drucker haben, der 1 Woche pro Druck braucht\n— oder —\nEinen Drucker, der Geld druckt, aber nur 1 Cent auf einmal",
+            }, age: "9-12",
+          },
+          {
+            text: {
+              en: "Know every programming language but forget how to write by hand\n— or —\nWrite beautifully but never use a computer again",
+              de: "Jede Programmiersprache können, aber das Schreiben mit der Hand vergessen\n— oder —\nWunderschön schreiben, aber nie wieder einen Computer benutzen",
+            }, age: "9-12",
+          },
+          {
+            text: {
+              en: "Have a time machine that only goes 5 minutes into the future\n— or —\nA teleporter that only works to places you've already been",
+              de: "Eine Zeitmaschine haben, die nur 5 Minuten in die Zukunft reist\n— oder —\nEinen Teleporter, der nur zu Orten funktioniert, an denen du schon warst",
+            }, age: "9-12",
+          },
+          {
+            text: {
+              en: "Build anything but it falls apart after one day\n— or —\nBuild only one thing ever but it lasts forever",
+              de: "Alles bauen können, aber es zerfällt nach einem Tag\n— oder —\nNur ein einziges Ding bauen dürfen, aber es hält für immer",
+            }, age: "all",
+          },
+          {
+            text: {
+              en: "Have a robot that does your homework but sometimes gets it wrong\n— or —\nDo all homework yourself but finish in half the time",
+              de: "Einen Roboter haben, der deine Hausaufgaben macht, aber manchmal Fehler einbaut\n— oder —\nAlle Hausaufgaben selbst machen, aber in der halben Zeit fertig sein",
+            }, age: "all",
+          },
+          {
+            text: {
+              en: "Invent something that makes people laugh every day\n— or —\nInvent something that saves one person's life once",
+              de: "Etwas erfinden, das Menschen jeden Tag zum Lachen bringt\n— oder —\nEtwas erfinden, das einmal einem Menschen das Leben rettet",
+            }, age: "all",
+          },
+          {
+            text: {
+              en: "Have a bike that drives itself but only at walking speed\n— or —\nA skateboard that goes super fast but you can't steer it",
+              de: "Ein Fahrrad haben, das von selbst fährt, aber nur im Schritttempo\n— oder —\nEin Skateboard, das super schnell fährt, aber nicht lenkbar ist",
+            }, age: "all",
+          },
         ],
       },
       {
-        id: "what-am-i", title: "What Am I?", subtitle: "Engineering Edition", type: "deck",
-        meta: { size: "3-15", time: "5-10 min", materials: "nothing" },
+        id: "what-am-i",
+        title: { en: "What Am I?", de: "Was bin ich?" },
+        subtitle: { en: "Engineering Edition", de: "Engineering-Edition" },
+        type: "deck",
+        meta: {
+          size: { en: "3–15", de: "3–15" },
+          time: { en: "5–10 min", de: "5–10 Min" },
+          materials: { en: "nothing", de: "nichts" },
+        },
         tags: ["break", "waiting", "team builder"],
-        rules: "Think of the answer on the card. Kids ask yes/no questions to guess. Max 20 questions. Whoever guesses picks the next round. For younger kids, give the category hint.",
-        tip: "Engineering twist — only allow machines and inventions.",
+        setup: {
+          en: "Draw a card and keep the answer secret. For younger kids, announce the category (machines and inventions).",
+          de: "Zieh eine Karte und halte die Antwort geheim. Bei jüngeren Kindern: Sag die Kategorie an (Maschinen und Erfindungen).",
+        },
+        how: {
+          en: "Kids ask yes/no questions to guess what you are. Maximum 20 questions. Whoever guesses correctly picks the next round.",
+          de: "Die Kinder stellen Ja/Nein-Fragen, um zu erraten, was du bist. Maximal 20 Fragen. Wer richtig rät, wählt die nächste Runde.",
+        },
+        tip: {
+          en: "Engineering twist — only allow machines and inventions.",
+          de: "Engineering-Variante — nur Maschinen und Erfindungen erlaubt.",
+        },
         prompts: [
-          { text: "A traffic light", hint: "I have three colors and I tell you when to stop", age: "6-8" },
-          { text: "A bridge", hint: "I help you cross something you can't walk through", age: "6-8" },
-          { text: "An algorithm", hint: "I'm a set of steps that solves a problem the same way every time", age: "9-12" },
-          { text: "A gear", hint: "I have teeth but I don't eat. I spin to make other things move", age: "9-12" },
-          { text: "Wi-Fi", hint: "You can't see, touch, or hear me — but you get very upset when I'm gone", age: "all" },
-          { text: "A battery", hint: "I store something invisible and share it when you need me, but I get tired", age: "all" },
+          {
+            text: { en: "A traffic light", de: "Eine Ampel" },
+            hint: {
+              en: "I have three colors and I tell you when to stop",
+              de: "Ich habe drei Farben und sage dir, wann du stehen bleiben musst",
+            }, age: "6-8",
+          },
+          {
+            text: { en: "A bridge", de: "Eine Brücke" },
+            hint: {
+              en: "I help you cross something you can't walk through",
+              de: "Ich helfe dir, etwas zu überqueren, durch das du nicht gehen kannst",
+            }, age: "6-8",
+          },
+          {
+            text: { en: "An algorithm", de: "Ein Algorithmus" },
+            hint: {
+              en: "I'm a set of steps that solves a problem the same way every time",
+              de: "Ich bin eine Folge von Schritten, die ein Problem jedes Mal gleich löst",
+            }, age: "9-12",
+          },
+          {
+            text: { en: "A gear", de: "Ein Zahnrad" },
+            hint: {
+              en: "I have teeth but I don't eat. I spin to make other things move",
+              de: "Ich habe Zähne, aber ich esse nicht. Ich drehe mich, damit andere Dinge sich bewegen",
+            }, age: "9-12",
+          },
+          {
+            text: { en: "Wi-Fi", de: "WLAN" },
+            hint: {
+              en: "You can't see, touch, or hear me — but you get very upset when I'm gone",
+              de: "Du kannst mich nicht sehen, anfassen oder hören — aber du bist sehr sauer, wenn ich weg bin",
+            }, age: "all",
+          },
+          {
+            text: { en: "A battery", de: "Eine Batterie" },
+            hint: {
+              en: "I store something invisible and share it when you need me, but I get tired",
+              de: "Ich speichere etwas Unsichtbares und teile es, wenn du mich brauchst — aber ich werde müde",
+            }, age: "all",
+          },
         ],
       },
       {
-        id: "open-questions", title: "Open Questions", type: "deck",
-        meta: { size: "any", time: "3-10 min", materials: "nothing" },
+        id: "open-questions",
+        title: { en: "Open Questions", de: "Offene Fragen" },
+        type: "deck",
+        meta: {
+          size: { en: "any", de: "beliebig" },
+          time: { en: "3–10 min", de: "3–10 Min" },
+          materials: { en: "nothing", de: "nichts" },
+        },
         tags: ["break", "get-to-know", "cooldown", "waiting"],
-        rules: "Draw a card, read the question. Everyone answers — go around the circle or popcorn style. No wrong answers. Follow up with 'why?' to keep it going.",
-        tip: "Great for quieter moments. Let kids take their time — silence is ok.",
+        setup: {
+          en: "Nothing to prepare. Sit in a circle if you can.",
+          de: "Nichts vorzubereiten. Wenn möglich, setzt euch in einen Kreis.",
+        },
+        how: {
+          en: "Draw a card, read the question aloud. Everyone answers — around the circle or popcorn style. No wrong answers. Follow up with \"why?\" to keep it going.",
+          de: "Zieh eine Karte und lies die Frage vor. Alle antworten — reihum oder kreuz und quer. Es gibt keine falschen Antworten. Hak mit einem \"Warum?\" nach.",
+        },
+        tip: {
+          en: "Great for quieter moments. Let kids take their time — silence is ok.",
+          de: "Super für ruhigere Momente. Lass den Kindern Zeit — Stille ist okay.",
+        },
         prompts: [
-          { text: "What object would you like to be for 24 hours and why?", age: "all" },
+          {
+            text: {
+              en: "What object would you like to be for 24 hours and why?",
+              de: "Welcher Gegenstand wärst du gern für 24 Stunden — und warum?",
+            }, age: "all",
+          },
         ],
       },
     ],
   },
   {
-    id: "energizer", title: "Energizers", desc: "Wake up, get moving.", color: "#FF3333",
+    id: "energizer",
+    title: { en: "Energizers", de: "Energizer" },
+    desc: { en: "Wake up, get moving.", de: "Aufwachen, in Bewegung kommen." },
+    color: COLOR.red,
     games: [{
-      id: "human-robot", title: "Human Robot", type: "activity",
-      meta: { size: "pairs", time: "3-5 min", materials: "nothing" },
+      id: "human-robot",
+      title: { en: "Human Robot", de: "Mensch-Roboter" },
+      type: "activity",
+      meta: {
+        size: { en: "pairs", de: "Paare" },
+        time: { en: "3–5 min", de: "3–5 Min" },
+        materials: { en: "nothing", de: "nichts" },
+      },
       tags: ["in-class", "energy burn", "team builder"], age: "all",
-      rules: "One kid is the 'programmer,' the other is the 'robot.' Programmer gives movement commands: forward 3 steps, turn left, pick up. Robot follows ONLY exact commands — nothing more, nothing less. Swap roles after 2 minutes. Set up an obstacle or target to navigate to.",
-      tip: "Directly teaches programming logic. 'The robot did the wrong thing' — 'No, your code had a bug!'",
+      setup: {
+        en: "Kids pair up. Set up a simple obstacle or a target to navigate to.",
+        de: "Die Kinder bilden Paare. Bau ein kleines Hindernis auf oder wähle ein Ziel, das angesteuert wird.",
+      },
+      how: {
+        en: "One kid is the \"programmer\", the other is the \"robot\". The programmer gives movement commands: forward 3 steps, turn left, pick up. The robot follows ONLY exact commands — nothing more, nothing less. Swap roles after 2 minutes.",
+        de: "Ein Kind ist Programmierer:in, das andere der Roboter. Es gibt Bewegungsbefehle: drei Schritte vor, links drehen, aufheben. Der Roboter befolgt NUR exakte Befehle — nicht mehr, nicht weniger. Nach 2 Minuten werden die Rollen getauscht.",
+      },
+      tip: {
+        en: "Directly teaches programming logic. \"The robot did the wrong thing\" — \"No, your code had a bug!\"",
+        de: "Vermittelt direkt Programmierlogik. \"Der Roboter hat das Falsche gemacht\" — \"Nein, dein Code hatte einen Bug!\"",
+      },
     }],
   },
   {
-    id: "focus", title: "Calm-down / Focus", desc: "Reset attention, create quiet.", color: "#0066FF",
+    id: "focus",
+    title: { en: "Calm-down / Focus", de: "Ruhe & Fokus" },
+    desc: { en: "Reset attention, create quiet.", de: "Aufmerksamkeit zurückholen, Ruhe schaffen." },
+    color: COLOR.blue,
     games: [
       {
-        id: "silent-countdown", title: "Silent Countdown", type: "activity",
-        meta: { size: "4+", time: "2-3 min", materials: "nothing" },
+        id: "silent-countdown",
+        title: { en: "Silent Countdown", de: "Stiller Countdown" },
+        type: "activity",
+        meta: {
+          size: { en: "4+", de: "4+" },
+          time: { en: "2–3 min", de: "2–3 Min" },
+          materials: { en: "nothing", de: "nichts" },
+        },
         tags: ["focus reset", "transition", "cooldown"], age: "all",
-        rules: "Group counts to 20, one person at a time, no set order, no signals. If two people speak at the same time — restart from 1. Eyes closed makes it harder. Track the group's best score across camp days.",
-        tip: "Perfect post-lunch reset. Gets quiet fast. Kids love beating their record.",
+        setup: {
+          en: "The group stands or sits so everyone can hear each other. Nothing else to prepare.",
+          de: "Die Gruppe steht oder sitzt so, dass alle einander hören. Sonst nichts vorzubereiten.",
+        },
+        how: {
+          en: "The group counts to 20 — one person at a time, no set order, no signals. If two people speak at the same time, restart from 1. Eyes closed makes it harder. Track the group's best score across camp days.",
+          de: "Die Gruppe zählt bis 20 — immer nur eine Person, keine feste Reihenfolge, keine Zeichen. Sprechen zwei gleichzeitig, geht es zurück auf 1. Mit geschlossenen Augen wird es schwieriger. Haltet den Gruppenrekord über die Camp-Tage fest.",
+        },
+        tip: {
+          en: "Perfect post-lunch reset. Gets quiet fast. Kids love beating their record.",
+          de: "Perfekter Reset nach dem Mittagessen. Wird schnell leise. Kinder lieben es, ihren Rekord zu knacken.",
+        },
       },
       {
-        id: "clap-pattern", title: "Clap Pattern", type: "activity",
-        meta: { size: "any", time: "1-2 min", materials: "nothing" },
+        id: "clap-pattern",
+        title: { en: "Clap Pattern", de: "Klatsch-Muster" },
+        type: "activity",
+        meta: {
+          size: { en: "any", de: "beliebig" },
+          time: { en: "1–2 min", de: "1–2 Min" },
+          materials: { en: "nothing", de: "nichts" },
+        },
         tags: ["focus reset", "transition"], age: "all",
-        rules: "Clap a rhythm pattern. Group repeats it. Each round gets more complex. Double use as your attention signal: you clap a pattern, kids stop what they're doing and repeat it back.",
-        tip: "Establish this Day 1 as YOUR signal. By Day 3 you never need to raise your voice.",
+        setup: {
+          en: "Nothing to prepare.",
+          de: "Nichts vorzubereiten.",
+        },
+        how: {
+          en: "Clap a rhythm pattern. The group repeats it. Each round gets more complex. Double use as your attention signal: you clap a pattern, kids stop what they're doing and repeat it back.",
+          de: "Klatsche einen Rhythmus vor. Die Gruppe wiederholt ihn. Jede Runde wird komplexer. Doppelnutzen als Aufmerksamkeitssignal: Du klatschst ein Muster, die Kinder stoppen und klatschen es zurück.",
+        },
+        tip: {
+          en: "Establish this Day 1 as YOUR signal. By Day 3 you never need to raise your voice.",
+          de: "Etabliere das an Tag 1 als DEIN Signal. Ab Tag 3 musst du nie wieder laut werden.",
+        },
       },
     ],
   },
   {
-    id: "team", title: "Team / Cooperation", desc: "Communication, trust, working together.", color: "#00AA44",
+    id: "team",
+    title: { en: "Team / Cooperation", de: "Team & Kooperation" },
+    desc: { en: "Communication, trust, working together.", de: "Kommunikation, Vertrauen, Zusammenarbeit." },
+    color: COLOR.green,
     games: [{
-      id: "storytelling-chain", title: "Storytelling Chain", type: "activity",
-      meta: { size: "3+", time: "3-8 min", materials: "nothing" },
+      id: "storytelling-chain",
+      title: { en: "Storytelling Chain", de: "Geschichten-Kette" },
+      type: "activity",
+      meta: {
+        size: { en: "3+", de: "3+" },
+        time: { en: "3–8 min", de: "3–8 Min" },
+        materials: { en: "nothing", de: "nichts" },
+      },
       tags: ["break", "waiting", "cooldown"], age: "all",
-      rules: "Start with: 'I built a robot that...' Next kid adds one sentence. Keep going around the circle. Engineering version: each addition must include a technical element — a sensor, a material, a mechanism.",
-      tip: "Shy kids can pass once but they're next after. Dominant kids get strict one-sentence limit.",
+      setup: {
+        en: "Sit in a circle. Agree on the starting sentence.",
+        de: "Setzt euch in einen Kreis. Einigt euch auf den Startsatz.",
+      },
+      how: {
+        en: "Start with: \"I built a robot that…\". The next kid adds one sentence. Keep going around the circle. Engineering version: each addition must include a technical element — a sensor, a material, a mechanism.",
+        de: "Beginne mit: \"Ich habe einen Roboter gebaut, der …\". Das nächste Kind ergänzt einen Satz, immer weiter im Kreis. Engineering-Version: Jede Ergänzung braucht ein technisches Element — einen Sensor, ein Material, einen Mechanismus.",
+      },
+      tip: {
+        en: "Shy kids can pass once but they're next after. Dominant kids get a strict one-sentence limit.",
+        de: "Schüchterne Kinder dürfen einmal passen, sind danach aber dran. Dominante Kinder bekommen ein striktes Ein-Satz-Limit.",
+      },
     }],
   },
   {
-    id: "gettoknow", title: "Get-to-know", desc: "First encounters, learning names.", color: "#9944CC", games: [],
+    id: "gettoknow",
+    title: { en: "Get-to-know", de: "Kennenlernen" },
+    desc: { en: "First encounters, learning names.", de: "Erstes Kennenlernen, Namen lernen." },
+    color: COLOR.purple,
+    games: [],
   },
 ];
 
-const AGE_COLORS = { "6-8": "#FF3333", "9-12": "#0066FF", "all": "#FFCC00" };
-const F = "Georgia, 'Times New Roman', serif";
+/* ═══ LANGUAGE ═══ */
+const LangCtx = createContext("de");
+function useT() {
+  const lang = useContext(LangCtx);
+  return {
+    lang,
+    t: (field) => (field && typeof field === "object" ? field[lang] : field),
+    ui: (key) => UI[key][lang],
+  };
+}
+function gamesLabel(n, lang) {
+  if (lang === "de") return `${n} Spiel${n !== 1 ? "e" : ""}`;
+  return `${n} game${n !== 1 ? "s" : ""}`;
+}
 
 function shuffle(arr) {
   const a = [...arr];
@@ -123,33 +417,39 @@ function shuffle(arr) {
 }
 
 /* small-caps label style used everywhere for metadata */
-const label = { fontFamily: F, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "#999" };
-const meta = { fontFamily: F, fontSize: 11, color: "#999", letterSpacing: "0.03em" };
+const label = { fontFamily: FONT.mono, fontSize: TYPE.label, letterSpacing: "0.12em", textTransform: "uppercase", color: COLOR.muted };
+const metaStyle = { fontFamily: FONT.serif, fontSize: TYPE.meta, color: COLOR.muted, letterSpacing: "0.03em" };
 
 function AgeBadge({ age }) {
+  const { ui, lang } = useT();
+  const text = age === "all" ? ui("allAges") : (lang === "de" ? `${age} Jahre` : `Ages ${age}`);
   return (
     <span style={{
-      ...label, fontSize: 10, padding: "2px 8px", borderRadius: 2,
-      background: "#F5F5F5", color: "#666",
-      borderLeft: `3px solid ${AGE_COLORS[age] || "#999"}`,
+      ...label, padding: "2px 8px", borderRadius: 2,
+      background: COLOR.hairline, color: COLOR.body,
+      borderLeft: `3px solid ${AGE_COLORS[age] || COLOR.muted}`,
       marginTop: 8, display: "inline-block",
-    }}>{age === "all" ? "All ages" : `Ages ${age}`}</span>
+    }}>{text}</span>
   );
 }
 
 function Meta({ m }) {
+  const { t } = useT();
   return (
-    <div style={{ display: "flex", gap: 16, marginBottom: 12, ...meta }}>
-      <span>{m.size}</span><span>{m.time}</span><span>{m.materials}</span>
+    <div style={{ display: "flex", gap: 16, marginBottom: 8, ...metaStyle }}>
+      <span>{t(m.size)}</span><span>{t(m.time)}</span><span>{t(m.materials)}</span>
     </div>
   );
 }
 
 function Tags({ tags }) {
+  const { t } = useT();
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
-      {tags.map(t => (
-        <span key={t} style={{ ...label, fontSize: 10, padding: "2px 6px", background: "#F8F8F8", color: "#AAA", borderRadius: 2, letterSpacing: "0.06em", textTransform: "none" }}>{t}</span>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+      {tags.map(key => (
+        <span key={key} style={{ ...label, letterSpacing: "0.06em", textTransform: "none", padding: "2px 8px", background: COLOR.wash, color: COLOR.muted, borderRadius: 2 }}>
+          {TAGS[key] ? t(TAGS[key]) : key}
+        </span>
       ))}
     </div>
   );
@@ -157,7 +457,7 @@ function Tags({ tags }) {
 
 function NavBack({ onClick, text }) {
   return (
-    <button onClick={onClick} style={{ fontFamily: F, fontSize: 12, color: "#999", cursor: "pointer", background: "none", border: "none", padding: 0, marginBottom: 28, display: "block" }}>
+    <button onClick={onClick} style={{ fontFamily: FONT.mono, fontSize: TYPE.label, color: COLOR.muted, cursor: "pointer", background: "none", border: "none", padding: 0, marginBottom: 24, display: "block" }}>
       &larr; {text}
     </button>
   );
@@ -166,71 +466,104 @@ function NavBack({ onClick, text }) {
 function Btn({ onClick, children, secondary }) {
   return (
     <button onClick={onClick} style={{
-      fontFamily: F, fontSize: 12,
-      background: "#FFF", color: secondary ? "#999" : "#1a1a1a",
-      border: `2px solid ${secondary ? "#E0E0E0" : "#1a1a1a"}`,
+      fontFamily: FONT.serif, fontSize: TYPE.meta,
+      background: "#FFF", color: secondary ? COLOR.muted : COLOR.ink,
+      border: `2px solid ${secondary ? COLOR.line : COLOR.ink}`,
       padding: "8px 16px", borderRadius: 2, cursor: "pointer", letterSpacing: "0.02em",
+      minHeight: 44, /* thumb-sized tap target */
     }}>{children}</button>
+  );
+}
+
+/* Setup / How to play / Tip — one consistent instruction block for all games */
+function Instructions({ game }) {
+  const { t, ui } = useT();
+  const sections = [
+    { key: "setup", text: t(game.setup) },
+    { key: "howToPlay", text: t(game.how) },
+  ];
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ background: COLOR.wash, border: `1px solid ${COLOR.hairline}`, borderRadius: 4 }}>
+        {sections.map((s, i) => s.text && (
+          <div key={s.key} style={{ padding: 16, borderTop: i > 0 ? `1px solid ${COLOR.line}` : "none" }}>
+            <div style={{ ...label, marginBottom: 8, color: COLOR.blue }}>{ui(s.key)}</div>
+            <p style={{ fontFamily: FONT.serif, fontSize: TYPE.body, lineHeight: 1.7, color: COLOR.body }}>{s.text}</p>
+          </div>
+        ))}
+      </div>
+      {t(game.tip) && (
+        <div style={{ fontFamily: FONT.serif, marginTop: 16, paddingLeft: 16, borderLeft: `3px solid ${COLOR.line}`, fontSize: TYPE.meta, color: COLOR.muted, lineHeight: 1.6 }}>
+          <strong style={{ color: COLOR.body }}>{ui("tip")}:</strong> {t(game.tip)}
+        </div>
+      )}
+    </div>
   );
 }
 
 /* ─── DECK PLAYER ─── */
 function DeckPlayer({ game, onBack }) {
+  const { t, ui } = useT();
   const [filter, setFilter] = useState("all");
-  const filtered = game.prompts.filter(p => filter === "all" || p.age === filter);
-  const deck = useMemo(() => shuffle(filtered), [filter, filtered.length]);
+  const filtered = useMemo(
+    () => game.prompts.filter(p => filter === "all" || p.age === filter),
+    [filter, game]
+  );
+  const [deck, setDeck] = useState(() => shuffle(filtered));
   const [idx, setIdx] = useState(0);
+  useEffect(() => { setDeck(shuffle(filtered)); setIdx(0); }, [filtered]);
+
   const card = deck[idx];
   const ages = [...new Set(game.prompts.map(p => p.age))];
   const next = () => setIdx(i => (i + 1) % deck.length);
+  const reshuffle = () => { setDeck(shuffle(filtered)); setIdx(0); };
 
   return (
     <div>
-      <NavBack onClick={onBack} text="back" />
-      <h2 style={{ fontFamily: F, fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{game.title}</h2>
-      {game.subtitle && <p style={{ fontFamily: F, fontSize: 14, color: "#888", marginBottom: 16 }}>{game.subtitle}</p>}
+      <NavBack onClick={onBack} text={ui("back")} />
+      <h2 style={{ fontFamily: FONT.serif, fontSize: TYPE.h2, fontWeight: 700, marginBottom: 4 }}>{t(game.title)}</h2>
+      {game.subtitle && <p style={{ fontFamily: FONT.serif, fontSize: TYPE.meta, color: COLOR.muted, marginBottom: 16 }}>{t(game.subtitle)}</p>}
       <Meta m={game.meta} />
       <Tags tags={game.tags} />
-      <div style={{ fontFamily: F, padding: 16, background: "#FAFAFA", border: "1px solid #EEE", borderRadius: 4, marginBottom: 16, fontSize: 13, lineHeight: 1.65, color: "#444" }}>
-        {game.rules}
-      </div>
-      {game.tip && <p style={{ fontFamily: F, fontSize: 12, color: "#888", marginBottom: 24, fontStyle: "italic" }}><strong style={{ color: "#666" }}>Tip:</strong> {game.tip}</p>}
+      <Instructions game={game} />
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 20, alignItems: "center" }}>
-        <span style={{ ...label, marginRight: 4 }}>Age</span>
+      <div style={{ display: "flex", gap: 8, margin: "24px 0 16px", alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ ...label, marginRight: 8 }}>{ui("age")}</span>
         {["all", ...ages.filter(a => a !== "all")].map(a => (
-          <button key={a} onClick={() => { setFilter(a); setIdx(0); }} style={{
-            fontFamily: F, fontSize: 11, padding: "4px 10px",
-            border: `2px solid ${filter === a ? (AGE_COLORS[a] || "#999") : "#E0E0E0"}`,
-            borderRadius: 2, cursor: "pointer",
-            background: filter === a ? "#FAFAFA" : "#FFF",
-            color: filter === a ? "#333" : "#AAA",
+          <button key={a} onClick={() => setFilter(a)} style={{
+            fontFamily: FONT.serif, fontSize: TYPE.label, padding: "8px 16px",
+            border: `2px solid ${filter === a ? (AGE_COLORS[a] || COLOR.muted) : COLOR.line}`,
+            borderRadius: 2, cursor: "pointer", minHeight: 40,
+            background: filter === a ? COLOR.wash : "#FFF",
+            color: filter === a ? COLOR.ink : COLOR.faint,
           }}>
-            {a === "all" ? "All" : a}
+            {a === "all" ? ui("all") : a}
           </button>
         ))}
       </div>
 
       {deck.length === 0 ? (
-        <p style={{ fontFamily: F, color: "#CCC", fontSize: 13, padding: "40px 0", textAlign: "center" }}>No prompts for this age range yet.</p>
+        <p style={{ fontFamily: FONT.serif, color: COLOR.faint, fontSize: TYPE.meta, padding: "40px 0", textAlign: "center" }}>{ui("noPrompts")}</p>
       ) : card && (
         <div onClick={next} style={{
-          border: "2px solid #E0E0E0", borderLeft: `6px solid ${AGE_COLORS[card.age] || "#999"}`,
-          borderRadius: 4, padding: 32, minHeight: 180,
+          border: `2px solid ${COLOR.line}`, borderLeft: `6px solid ${AGE_COLORS[card.age] || COLOR.muted}`,
+          borderRadius: 4, padding: 32,
+          /* scales up for laptop + beamer: readable across a room */
+          minHeight: "clamp(200px, 32vh, 360px)",
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           textAlign: "center", marginBottom: 16, cursor: "pointer", userSelect: "none",
         }}>
-          <div style={{ fontFamily: F, fontSize: 17, lineHeight: 1.7, whiteSpace: "pre-line" }}>{card.text}</div>
-          {card.hint && <div style={{ fontFamily: F, fontSize: 12, color: "#999", marginTop: 10 }}>Hint: {card.hint}</div>}
+          <div style={{ fontFamily: FONT.serif, fontSize: "clamp(17px, 2.6vw, 34px)", lineHeight: 1.7, whiteSpace: "pre-line" }}>{t(card.text)}</div>
+          {card.hint && <div style={{ fontFamily: FONT.serif, fontSize: "clamp(13px, 1.6vw, 20px)", color: COLOR.muted, marginTop: 16 }}>{ui("hint")}: {t(card.hint)}</div>}
           <AgeBadge age={card.age} />
         </div>
       )}
 
       {deck.length > 0 && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Btn onClick={next}>Next card</Btn>
-          <span style={{ fontFamily: F, fontSize: 11, color: "#CCC" }}>{idx + 1} / {deck.length}</span>
-          <Btn onClick={() => setIdx(0)} secondary>Reshuffle</Btn>
+          <Btn onClick={next}>{ui("nextCard")}</Btn>
+          <span style={{ fontFamily: FONT.mono, fontSize: TYPE.label, color: COLOR.faint }}>{idx + 1} / {deck.length}</span>
+          <Btn onClick={reshuffle} secondary>{ui("reshuffle")}</Btn>
         </div>
       )}
     </div>
@@ -239,84 +572,103 @@ function DeckPlayer({ game, onBack }) {
 
 /* ─── ACTIVITY CARD ─── */
 function ActivityCard({ game, onBack }) {
+  const { t, ui } = useT();
   return (
     <div>
-      <NavBack onClick={onBack} text="back" />
-      <h2 style={{ fontFamily: F, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{game.title}</h2>
+      <NavBack onClick={onBack} text={ui("back")} />
+      <h2 style={{ fontFamily: FONT.serif, fontSize: TYPE.h2, fontWeight: 700, marginBottom: 8 }}>{t(game.title)}</h2>
       <div style={{ marginBottom: 16 }}><AgeBadge age={game.age} /></div>
       <Meta m={game.meta} />
       <Tags tags={game.tags} />
-      <div style={{ fontFamily: F, padding: 20, background: "#FAFAFA", border: "1px solid #EEE", borderRadius: 4, marginBottom: 16, fontSize: 14, lineHeight: 1.75, color: "#333" }}>
-        {game.rules}
-      </div>
-      {game.tip && (
-        <div style={{ fontFamily: F, paddingLeft: 16, borderLeft: "3px solid #E0E0E0", fontSize: 13, color: "#888", lineHeight: 1.6 }}>
-          <strong style={{ color: "#666" }}>Tip:</strong> {game.tip}
-        </div>
-      )}
+      <Instructions game={game} />
     </div>
   );
 }
 
 /* ─── MAIN ─── */
 function App() {
+  const [lang, setLang] = useState(() => {
+    try { return localStorage.getItem("tb-lang") || "de"; } catch (e) { return "de"; }
+  });
   const [view, setView] = useState("home");
   const [catId, setCatId] = useState(null);
   const [gameId, setGameId] = useState(null);
 
+  useEffect(() => {
+    try { localStorage.setItem("tb-lang", lang); } catch (e) {}
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   const cat = CATEGORIES.find(c => c.id === catId);
-  const game = cat?.games.find(g => g.id === gameId);
+  const game = cat && cat.games.find(g => g.id === gameId);
 
   const goHome = () => { setView("home"); setCatId(null); setGameId(null); };
   const openCat = (id) => { setCatId(id); setView("category"); setGameId(null); };
   const openGame = (id) => { setGameId(id); setView("game"); };
 
+  const t = (field) => (field && typeof field === "object" ? field[lang] : field);
+  const ui = (key) => UI[key][lang];
+
   return (
-    <div style={{ minHeight: "100vh", background: "#FFFFFF", color: "#1a1a1a", fontFamily: F }}>
+    <LangCtx.Provider value={lang}>
+    <div style={{ minHeight: "100vh", background: "#FFFFFF", color: COLOR.ink, fontFamily: FONT.serif }}>
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .fade-in { animation: fadeIn 0.2s ease-out; }
-        .tile { border: 2px solid #E0E0E0; border-radius: 4px; padding: 20px; cursor: pointer; transition: border-color 0.15s, transform 0.15s; }
+        .tile { border: 2px solid ${COLOR.line}; border-radius: 4px; padding: 24px; cursor: pointer; transition: border-color 0.15s, transform 0.15s; }
         .tile:hover { transform: translateY(-2px); }
         .tile.empty { opacity: 0.3; cursor: default; }
         .tile.empty:hover { transform: none; }
+        .lang-btn { font-family: ${FONT.mono}; font-size: ${TYPE.label}px; letter-spacing: 0.1em; background: none; border: none; cursor: pointer; padding: 8px; }
       `}</style>
 
-      <div style={{ maxWidth: 600, margin: "0 auto", padding: "48px 24px 80px" }}>
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "48px 24px 80px" }}>
 
-        <header style={{ marginBottom: 40, borderBottom: "2px solid #1a1a1a", paddingBottom: 16 }}>
-          <div style={{ display: "flex", gap: 3, marginBottom: 8 }}>
-            {["#FF3333","#0066FF","#FFCC00","#00AA44","#9944CC"].map((c,i) => (
-              <span key={i} style={{ display: "inline-block", width: 6, height: 6, background: c }} />
-            ))}
+        <header style={{ marginBottom: 40, borderBottom: `2px solid ${COLOR.ink}`, paddingBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ display: "flex", gap: 3, marginBottom: 8 }}>
+                {[COLOR.red, COLOR.blue, COLOR.yellow, COLOR.green, COLOR.purple].map((c, i) => (
+                  <span key={i} style={{ display: "inline-block", width: 6, height: 6, background: c }} />
+                ))}
+              </div>
+              <span style={{ ...label }}>TeachBase</span>
+              <h1 onClick={goHome} style={{ fontFamily: FONT.serif, fontSize: TYPE.h1, fontWeight: 700, cursor: "pointer" }}>{ui("libraryTitle")}</h1>
+            </div>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              {["en", "de"].map((l, i) => (
+                <React.Fragment key={l}>
+                  {i > 0 && <span style={{ color: COLOR.faint, fontFamily: FONT.mono, fontSize: TYPE.label }}>|</span>}
+                  <button className="lang-btn" onClick={() => setLang(l)}
+                    style={{ color: lang === l ? COLOR.blue : COLOR.faint, fontWeight: lang === l ? 700 : 400 }}>
+                    {l.toUpperCase()}
+                  </button>
+                </React.Fragment>
+              ))}
+            </div>
           </div>
-          <span style={{ ...label }}>TeachBase</span>
-          <h1 onClick={goHome} style={{ fontFamily: F, fontSize: 22, fontWeight: 700, cursor: "pointer" }}>Game Library</h1>
         </header>
 
         {view === "home" && (
           <div className="fade-in">
-            <p style={{ fontFamily: F, fontSize: 14, color: "#666", lineHeight: 1.7, marginBottom: 32, maxWidth: 440 }}>
-              Games sorted by what you need them to do. Tap a category, pick a game, play.
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               {CATEGORIES.map(c => {
                 const count = c.games.length;
-                const empty = count === 0;
+                const isEmpty = count === 0;
                 return (
-                  <div key={c.id} className={`tile ${empty ? "empty" : ""}`}
-                    onClick={() => !empty && openCat(c.id)}
+                  <div key={c.id} className={`tile ${isEmpty ? "empty" : ""}`}
+                    onClick={() => !isEmpty && openCat(c.id)}
                     style={{ borderTop: `4px solid ${c.color}`, minHeight: 120, display: "flex", flexDirection: "column", justifyContent: "space-between" }}
-                    onMouseEnter={e => { if (!empty) e.currentTarget.style.borderColor = c.color; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#E0E0E0"; e.currentTarget.style.borderTopColor = c.color; }}
+                    onMouseEnter={e => { if (!isEmpty) e.currentTarget.style.borderColor = c.color; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = COLOR.line; e.currentTarget.style.borderTopColor = c.color; }}
                   >
                     <div>
-                      <div style={{ fontFamily: F, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{c.title}</div>
-                      <div style={{ fontFamily: F, fontSize: 12, color: "#999", lineHeight: 1.5 }}>{c.desc}</div>
+                      <div style={{ fontFamily: FONT.serif, fontSize: TYPE.body, fontWeight: 700, marginBottom: 8 }}>{t(c.title)}</div>
+                      <div style={{ fontFamily: FONT.serif, fontSize: TYPE.meta, color: COLOR.muted, lineHeight: 1.5 }}>{t(c.desc)}</div>
                     </div>
-                    <div style={{ ...label, fontSize: 10, color: empty ? "#CCC" : c.color, marginTop: 12 }}>
-                      {empty ? "empty" : `${count} game${count !== 1 ? "s" : ""}`}
+                    <div style={{ ...label, color: isEmpty ? COLOR.faint : c.color, marginTop: 16 }}>
+                      {isEmpty ? ui("empty") : gamesLabel(count, lang)}
                     </div>
                   </div>
                 );
@@ -327,27 +679,27 @@ function App() {
 
         {view === "category" && cat && (
           <div className="fade-in">
-            <NavBack onClick={goHome} text="all categories" />
-            <div style={{ borderTop: `4px solid ${cat.color}`, paddingTop: 12, marginBottom: 24 }}>
-              <h2 style={{ fontFamily: F, fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{cat.title}</h2>
-              <p style={{ fontFamily: F, fontSize: 13, color: "#888" }}>{cat.desc}</p>
+            <NavBack onClick={goHome} text={ui("allCategories")} />
+            <div style={{ borderTop: `4px solid ${cat.color}`, paddingTop: 16, marginBottom: 24 }}>
+              <h2 style={{ fontFamily: FONT.serif, fontSize: TYPE.h2, fontWeight: 700, marginBottom: 4 }}>{t(cat.title)}</h2>
+              <p style={{ fontFamily: FONT.serif, fontSize: TYPE.meta, color: COLOR.muted }}>{t(cat.desc)}</p>
             </div>
             {cat.games.length === 0 ? (
-              <p style={{ fontFamily: F, color: "#CCC", fontSize: 13, padding: "40px 0", textAlign: "center" }}>No games yet.</p>
+              <p style={{ fontFamily: FONT.serif, color: COLOR.faint, fontSize: TYPE.meta, padding: "40px 0", textAlign: "center" }}>{ui("noGames")}</p>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 {cat.games.map(g => (
                   <div key={g.id} className="tile" onClick={() => openGame(g.id)}
-                    style={{ minHeight: 100, display: "flex", flexDirection: "column", justifyContent: "space-between" }}
+                    style={{ minHeight: 104, display: "flex", flexDirection: "column", justifyContent: "space-between" }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = cat.color; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#E0E0E0"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = COLOR.line; }}
                   >
                     <div>
-                      <div style={{ fontFamily: F, fontSize: 15, fontWeight: 700, marginBottom: 2 }}>{g.title}</div>
-                      {g.subtitle && <div style={{ fontFamily: F, fontSize: 12, color: "#999" }}>{g.subtitle}</div>}
+                      <div style={{ fontFamily: FONT.serif, fontSize: TYPE.body, fontWeight: 700, marginBottom: 4 }}>{t(g.title)}</div>
+                      {g.subtitle && <div style={{ fontFamily: FONT.serif, fontSize: TYPE.meta, color: COLOR.muted }}>{t(g.subtitle)}</div>}
                     </div>
-                    <div style={{ ...meta, fontSize: 10, marginTop: 10 }}>
-                      {g.type === "deck" ? `${g.prompts.length} cards` : "activity"} · {g.meta.time}
+                    <div style={{ ...metaStyle, fontSize: TYPE.label, marginTop: 8 }}>
+                      {g.type === "deck" ? `${g.prompts.length} ${ui("cards")}` : ui("activity")} · {t(g.meta.time)}
                     </div>
                   </div>
                 ))}
@@ -365,16 +717,17 @@ function App() {
           </div>
         )}
 
-        <footer style={{ marginTop: 80, paddingTop: 16, borderTop: "1px solid #F0F0F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ ...label, fontSize: 10, color: "#CCC" }}>TeachBase — Game Library</span>
+        <footer style={{ marginTop: 80, paddingTop: 16, borderTop: `1px solid ${COLOR.hairline}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ ...label, color: COLOR.faint }}>TeachBase — {ui("libraryTitle")}</span>
           <div style={{ display: "flex", gap: 3 }}>
-            {["#FF3333","#0066FF","#FFCC00","#00AA44","#9944CC"].map((c,i) => (
+            {[COLOR.red, COLOR.blue, COLOR.yellow, COLOR.green, COLOR.purple].map((c, i) => (
               <span key={i} style={{ display: "inline-block", width: 5, height: 5, background: c }} />
             ))}
           </div>
         </footer>
       </div>
     </div>
+    </LangCtx.Provider>
   );
 }
 
