@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TeachBase Game Library</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo } = React;
+
+
+const CATEGORIES = [
+  {
+    id: "prompt", title: "Q&A / Prompt Games", desc: "Draw a card, read it aloud.", color: "#FFCC00",
+    games: [
+      {
+        id: "would-you-rather", title: "Would You Rather", subtitle: "Engineering Edition", type: "deck",
+        meta: { size: "any", time: "2-10 min", materials: "nothing" },
+        tags: ["break", "waiting", "trickle-in", "cooldown"],
+        rules: "Read the prompt aloud. Kids choose A or B — move to sides of the room, raise hands, or shout. Ask 1-2 kids WHY. Keep it fast, one prompt per minute.",
+        tip: "If it gets rowdy, switch to silent vote — eyes closed, raise hands. Works great post-lunch.",
+        prompts: [
+          { text: "Have a robot dog that only barks in music\n— or —\nA cat that glows in the dark", age: "6-8" },
+          { text: "Have shoes that make you jump super high\n— or —\nGloves that make you super strong", age: "6-8" },
+          { text: "Live in a treehouse with a slide to the ground\n— or —\nLive underwater in a bubble house", age: "6-8" },
+          { text: "Have a backpack that never runs out of snacks\n— or —\nA pencil that draws things that become real", age: "6-8" },
+          { text: "Be able to fly but only 20cm off the ground\n— or —\nBe invisible but only when nobody is looking", age: "9-12" },
+          { text: "Have a 3D printer that takes 1 week per print\n— or —\nA printer that prints money but only 1 cent at a time", age: "9-12" },
+          { text: "Know every programming language but forget how to write by hand\n— or —\nWrite beautifully but never use a computer again", age: "9-12" },
+          { text: "Have a time machine that only goes 5 minutes into the future\n— or —\nA teleporter that only works to places you've already been", age: "9-12" },
+          { text: "Build anything but it falls apart after one day\n— or —\nBuild only one thing ever but it lasts forever", age: "all" },
+          { text: "Have a robot that does your homework but sometimes gets it wrong\n— or —\nDo all homework yourself but finish in half the time", age: "all" },
+          { text: "Invent something that makes people laugh every day\n— or —\nInvent something that saves one person's life once", age: "all" },
+          { text: "Have a bike that drives itself but only at walking speed\n— or —\nA skateboard that goes super fast but you can't steer it", age: "all" },
+        ],
+      },
+      {
+        id: "what-am-i", title: "What Am I?", subtitle: "Engineering Edition", type: "deck",
+        meta: { size: "3-15", time: "5-10 min", materials: "nothing" },
+        tags: ["break", "waiting", "team builder"],
+        rules: "Think of the answer on the card. Kids ask yes/no questions to guess. Max 20 questions. Whoever guesses picks the next round. For younger kids, give the category hint.",
+        tip: "Engineering twist — only allow machines and inventions.",
+        prompts: [
+          { text: "A traffic light", hint: "I have three colors and I tell you when to stop", age: "6-8" },
+          { text: "A bridge", hint: "I help you cross something you can't walk through", age: "6-8" },
+          { text: "An algorithm", hint: "I'm a set of steps that solves a problem the same way every time", age: "9-12" },
+          { text: "A gear", hint: "I have teeth but I don't eat. I spin to make other things move", age: "9-12" },
+          { text: "Wi-Fi", hint: "You can't see, touch, or hear me — but you get very upset when I'm gone", age: "all" },
+          { text: "A battery", hint: "I store something invisible and share it when you need me, but I get tired", age: "all" },
+        ],
+      },
+      {
+        id: "open-questions", title: "Open Questions", type: "deck",
+        meta: { size: "any", time: "3-10 min", materials: "nothing" },
+        tags: ["break", "get-to-know", "cooldown", "waiting"],
+        rules: "Draw a card, read the question. Everyone answers — go around the circle or popcorn style. No wrong answers. Follow up with 'why?' to keep it going.",
+        tip: "Great for quieter moments. Let kids take their time — silence is ok.",
+        prompts: [
+          { text: "What object would you like to be for 24 hours and why?", age: "all" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "energizer", title: "Energizers", desc: "Wake up, get moving.", color: "#FF3333",
+    games: [{
+      id: "human-robot", title: "Human Robot", type: "activity",
+      meta: { size: "pairs", time: "3-5 min", materials: "nothing" },
+      tags: ["in-class", "energy burn", "team builder"], age: "all",
+      rules: "One kid is the 'programmer,' the other is the 'robot.' Programmer gives movement commands: forward 3 steps, turn left, pick up. Robot follows ONLY exact commands — nothing more, nothing less. Swap roles after 2 minutes. Set up an obstacle or target to navigate to.",
+      tip: "Directly teaches programming logic. 'The robot did the wrong thing' — 'No, your code had a bug!'",
+    }],
+  },
+  {
+    id: "focus", title: "Calm-down / Focus", desc: "Reset attention, create quiet.", color: "#0066FF",
+    games: [
+      {
+        id: "silent-countdown", title: "Silent Countdown", type: "activity",
+        meta: { size: "4+", time: "2-3 min", materials: "nothing" },
+        tags: ["focus reset", "transition", "cooldown"], age: "all",
+        rules: "Group counts to 20, one person at a time, no set order, no signals. If two people speak at the same time — restart from 1. Eyes closed makes it harder. Track the group's best score across camp days.",
+        tip: "Perfect post-lunch reset. Gets quiet fast. Kids love beating their record.",
+      },
+      {
+        id: "clap-pattern", title: "Clap Pattern", type: "activity",
+        meta: { size: "any", time: "1-2 min", materials: "nothing" },
+        tags: ["focus reset", "transition"], age: "all",
+        rules: "Clap a rhythm pattern. Group repeats it. Each round gets more complex. Double use as your attention signal: you clap a pattern, kids stop what they're doing and repeat it back.",
+        tip: "Establish this Day 1 as YOUR signal. By Day 3 you never need to raise your voice.",
+      },
+    ],
+  },
+  {
+    id: "team", title: "Team / Cooperation", desc: "Communication, trust, working together.", color: "#00AA44",
+    games: [{
+      id: "storytelling-chain", title: "Storytelling Chain", type: "activity",
+      meta: { size: "3+", time: "3-8 min", materials: "nothing" },
+      tags: ["break", "waiting", "cooldown"], age: "all",
+      rules: "Start with: 'I built a robot that...' Next kid adds one sentence. Keep going around the circle. Engineering version: each addition must include a technical element — a sensor, a material, a mechanism.",
+      tip: "Shy kids can pass once but they're next after. Dominant kids get strict one-sentence limit.",
+    }],
+  },
+  {
+    id: "gettoknow", title: "Get-to-know", desc: "First encounters, learning names.", color: "#9944CC", games: [],
+  },
+];
+
+const AGE_COLORS = { "6-8": "#FF3333", "9-12": "#0066FF", "all": "#FFCC00" };
+const F = "Georgia, 'Times New Roman', serif";
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* small-caps label style used everywhere for metadata */
+const label = { fontFamily: F, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "#999" };
+const meta = { fontFamily: F, fontSize: 11, color: "#999", letterSpacing: "0.03em" };
+
+function AgeBadge({ age }) {
+  return (
+    <span style={{
+      ...label, fontSize: 10, padding: "2px 8px", borderRadius: 2,
+      background: "#F5F5F5", color: "#666",
+      borderLeft: `3px solid ${AGE_COLORS[age] || "#999"}`,
+      marginTop: 8, display: "inline-block",
+    }}>{age === "all" ? "All ages" : `Ages ${age}`}</span>
+  );
+}
+
+function Meta({ m }) {
+  return (
+    <div style={{ display: "flex", gap: 16, marginBottom: 12, ...meta }}>
+      <span>{m.size}</span><span>{m.time}</span><span>{m.materials}</span>
+    </div>
+  );
+}
+
+function Tags({ tags }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12 }}>
+      {tags.map(t => (
+        <span key={t} style={{ ...label, fontSize: 10, padding: "2px 6px", background: "#F8F8F8", color: "#AAA", borderRadius: 2, letterSpacing: "0.06em", textTransform: "none" }}>{t}</span>
+      ))}
+    </div>
+  );
+}
+
+function NavBack({ onClick, text }) {
+  return (
+    <button onClick={onClick} style={{ fontFamily: F, fontSize: 12, color: "#999", cursor: "pointer", background: "none", border: "none", padding: 0, marginBottom: 28, display: "block" }}>
+      &larr; {text}
+    </button>
+  );
+}
+
+function Btn({ onClick, children, secondary }) {
+  return (
+    <button onClick={onClick} style={{
+      fontFamily: F, fontSize: 12,
+      background: "#FFF", color: secondary ? "#999" : "#1a1a1a",
+      border: `2px solid ${secondary ? "#E0E0E0" : "#1a1a1a"}`,
+      padding: "8px 16px", borderRadius: 2, cursor: "pointer", letterSpacing: "0.02em",
+    }}>{children}</button>
+  );
+}
+
+/* ─── DECK PLAYER ─── */
+function DeckPlayer({ game, onBack }) {
+  const [filter, setFilter] = useState("all");
+  const filtered = game.prompts.filter(p => filter === "all" || p.age === filter);
+  const deck = useMemo(() => shuffle(filtered), [filter, filtered.length]);
+  const [idx, setIdx] = useState(0);
+  const card = deck[idx];
+  const ages = [...new Set(game.prompts.map(p => p.age))];
+  const next = () => setIdx(i => (i + 1) % deck.length);
+
+  return (
+    <div>
+      <NavBack onClick={onBack} text="back" />
+      <h2 style={{ fontFamily: F, fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{game.title}</h2>
+      {game.subtitle && <p style={{ fontFamily: F, fontSize: 14, color: "#888", marginBottom: 16 }}>{game.subtitle}</p>}
+      <Meta m={game.meta} />
+      <Tags tags={game.tags} />
+      <div style={{ fontFamily: F, padding: 16, background: "#FAFAFA", border: "1px solid #EEE", borderRadius: 4, marginBottom: 16, fontSize: 13, lineHeight: 1.65, color: "#444" }}>
+        {game.rules}
+      </div>
+      {game.tip && <p style={{ fontFamily: F, fontSize: 12, color: "#888", marginBottom: 24, fontStyle: "italic" }}><strong style={{ color: "#666" }}>Tip:</strong> {game.tip}</p>}
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 20, alignItems: "center" }}>
+        <span style={{ ...label, marginRight: 4 }}>Age</span>
+        {["all", ...ages.filter(a => a !== "all")].map(a => (
+          <button key={a} onClick={() => { setFilter(a); setIdx(0); }} style={{
+            fontFamily: F, fontSize: 11, padding: "4px 10px",
+            border: `2px solid ${filter === a ? (AGE_COLORS[a] || "#999") : "#E0E0E0"}`,
+            borderRadius: 2, cursor: "pointer",
+            background: filter === a ? "#FAFAFA" : "#FFF",
+            color: filter === a ? "#333" : "#AAA",
+          }}>
+            {a === "all" ? "All" : a}
+          </button>
+        ))}
+      </div>
+
+      {deck.length === 0 ? (
+        <p style={{ fontFamily: F, color: "#CCC", fontSize: 13, padding: "40px 0", textAlign: "center" }}>No prompts for this age range yet.</p>
+      ) : card && (
+        <div onClick={next} style={{
+          border: "2px solid #E0E0E0", borderLeft: `6px solid ${AGE_COLORS[card.age] || "#999"}`,
+          borderRadius: 4, padding: 32, minHeight: 180,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          textAlign: "center", marginBottom: 16, cursor: "pointer", userSelect: "none",
+        }}>
+          <div style={{ fontFamily: F, fontSize: 17, lineHeight: 1.7, whiteSpace: "pre-line" }}>{card.text}</div>
+          {card.hint && <div style={{ fontFamily: F, fontSize: 12, color: "#999", marginTop: 10 }}>Hint: {card.hint}</div>}
+          <AgeBadge age={card.age} />
+        </div>
+      )}
+
+      {deck.length > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Btn onClick={next}>Next card</Btn>
+          <span style={{ fontFamily: F, fontSize: 11, color: "#CCC" }}>{idx + 1} / {deck.length}</span>
+          <Btn onClick={() => setIdx(0)} secondary>Reshuffle</Btn>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── ACTIVITY CARD ─── */
+function ActivityCard({ game, onBack }) {
+  return (
+    <div>
+      <NavBack onClick={onBack} text="back" />
+      <h2 style={{ fontFamily: F, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{game.title}</h2>
+      <div style={{ marginBottom: 16 }}><AgeBadge age={game.age} /></div>
+      <Meta m={game.meta} />
+      <Tags tags={game.tags} />
+      <div style={{ fontFamily: F, padding: 20, background: "#FAFAFA", border: "1px solid #EEE", borderRadius: 4, marginBottom: 16, fontSize: 14, lineHeight: 1.75, color: "#333" }}>
+        {game.rules}
+      </div>
+      {game.tip && (
+        <div style={{ fontFamily: F, paddingLeft: 16, borderLeft: "3px solid #E0E0E0", fontSize: 13, color: "#888", lineHeight: 1.6 }}>
+          <strong style={{ color: "#666" }}>Tip:</strong> {game.tip}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── MAIN ─── */
+function App() {
+  const [view, setView] = useState("home");
+  const [catId, setCatId] = useState(null);
+  const [gameId, setGameId] = useState(null);
+
+  const cat = CATEGORIES.find(c => c.id === catId);
+  const game = cat?.games.find(g => g.id === gameId);
+
+  const goHome = () => { setView("home"); setCatId(null); setGameId(null); };
+  const openCat = (id) => { setCatId(id); setView("category"); setGameId(null); };
+  const openGame = (id) => { setGameId(id); setView("game"); };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#FFFFFF", color: "#1a1a1a", fontFamily: F }}>
+      <style>{`
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.2s ease-out; }
+        .tile { border: 2px solid #E0E0E0; border-radius: 4px; padding: 20px; cursor: pointer; transition: border-color 0.15s, transform 0.15s; }
+        .tile:hover { transform: translateY(-2px); }
+        .tile.empty { opacity: 0.3; cursor: default; }
+        .tile.empty:hover { transform: none; }
+      `}</style>
+
+      <div style={{ maxWidth: 600, margin: "0 auto", padding: "48px 24px 80px" }}>
+
+        <header style={{ marginBottom: 40, borderBottom: "2px solid #1a1a1a", paddingBottom: 16 }}>
+          <div style={{ display: "flex", gap: 3, marginBottom: 8 }}>
+            {["#FF3333","#0066FF","#FFCC00","#00AA44","#9944CC"].map((c,i) => (
+              <span key={i} style={{ display: "inline-block", width: 6, height: 6, background: c }} />
+            ))}
+          </div>
+          <span style={{ ...label }}>TeachBase</span>
+          <h1 onClick={goHome} style={{ fontFamily: F, fontSize: 22, fontWeight: 700, cursor: "pointer" }}>Game Library</h1>
+        </header>
+
+        {view === "home" && (
+          <div className="fade-in">
+            <p style={{ fontFamily: F, fontSize: 14, color: "#666", lineHeight: 1.7, marginBottom: 32, maxWidth: 440 }}>
+              Games sorted by what you need them to do. Tap a category, pick a game, play.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {CATEGORIES.map(c => {
+                const count = c.games.length;
+                const empty = count === 0;
+                return (
+                  <div key={c.id} className={`tile ${empty ? "empty" : ""}`}
+                    onClick={() => !empty && openCat(c.id)}
+                    style={{ borderTop: `4px solid ${c.color}`, minHeight: 120, display: "flex", flexDirection: "column", justifyContent: "space-between" }}
+                    onMouseEnter={e => { if (!empty) e.currentTarget.style.borderColor = c.color; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#E0E0E0"; e.currentTarget.style.borderTopColor = c.color; }}
+                  >
+                    <div>
+                      <div style={{ fontFamily: F, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{c.title}</div>
+                      <div style={{ fontFamily: F, fontSize: 12, color: "#999", lineHeight: 1.5 }}>{c.desc}</div>
+                    </div>
+                    <div style={{ ...label, fontSize: 10, color: empty ? "#CCC" : c.color, marginTop: 12 }}>
+                      {empty ? "empty" : `${count} game${count !== 1 ? "s" : ""}`}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {view === "category" && cat && (
+          <div className="fade-in">
+            <NavBack onClick={goHome} text="all categories" />
+            <div style={{ borderTop: `4px solid ${cat.color}`, paddingTop: 12, marginBottom: 24 }}>
+              <h2 style={{ fontFamily: F, fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{cat.title}</h2>
+              <p style={{ fontFamily: F, fontSize: 13, color: "#888" }}>{cat.desc}</p>
+            </div>
+            {cat.games.length === 0 ? (
+              <p style={{ fontFamily: F, color: "#CCC", fontSize: 13, padding: "40px 0", textAlign: "center" }}>No games yet.</p>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {cat.games.map(g => (
+                  <div key={g.id} className="tile" onClick={() => openGame(g.id)}
+                    style={{ minHeight: 100, display: "flex", flexDirection: "column", justifyContent: "space-between" }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = cat.color; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#E0E0E0"; }}
+                  >
+                    <div>
+                      <div style={{ fontFamily: F, fontSize: 15, fontWeight: 700, marginBottom: 2 }}>{g.title}</div>
+                      {g.subtitle && <div style={{ fontFamily: F, fontSize: 12, color: "#999" }}>{g.subtitle}</div>}
+                    </div>
+                    <div style={{ ...meta, fontSize: 10, marginTop: 10 }}>
+                      {g.type === "deck" ? `${g.prompts.length} cards` : "activity"} · {g.meta.time}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {view === "game" && game && (
+          <div className="fade-in">
+            {game.type === "deck"
+              ? <DeckPlayer game={game} onBack={() => openCat(catId)} />
+              : <ActivityCard game={game} onBack={() => openCat(catId)} />
+            }
+          </div>
+        )}
+
+        <footer style={{ marginTop: 80, paddingTop: 16, borderTop: "1px solid #F0F0F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ ...label, fontSize: 10, color: "#CCC" }}>TeachBase — Game Library</span>
+          <div style={{ display: "flex", gap: 3 }}>
+            {["#FF3333","#0066FF","#FFCC00","#00AA44","#9944CC"].map((c,i) => (
+              <span key={i} style={{ display: "inline-block", width: 5, height: 5, background: c }} />
+            ))}
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

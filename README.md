@@ -1,0 +1,23 @@
+# TeachBase Game Platform
+
+Bilingual (EN/DE) game library for teachers running kids' tech and engineering
+camps and classes: break games, energizers, focus and team activities — with
+rules, tips, and shuffled prompt cards.
+
+- **Live site:** (added after first deploy)
+- **Plan:** see [PLAN.md](PLAN.md)
+- **Design rules:** see DESIGN.md (added in build step 4)
+
+## How it works
+
+One HTML file (`index.html`) built with React, served by Netlify.
+Game content lives in Supabase and is edited by the core team —
+either in the app's edit mode or the Supabase dashboard. Content
+changes are live immediately; code changes deploy automatically
+(~1 min) whenever this repository changes.
+
+## Maintaining
+
+- **Content** (games, cards, translations): use the app's edit mode. No coding.
+- **Features/design**: open this repo with Claude Code and describe the change.
+  Read PLAN.md and DESIGN.md first.
