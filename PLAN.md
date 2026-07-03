@@ -119,10 +119,9 @@ Keep the existing editorial look and systematize it:
 | 5 | **Edit mode (committed):** team login, add/edit games & cards, draft → publish | ✓ done |
 | 6 | *If time:* DeepL auto-translate button in the edit mode | 30 min |
 
-Remaining scope: steps 2, 5, 6 (~2.5–3 h; needs the Supabase login in the browser).
-Until the edit mode exists, the Supabase dashboard covers content editing.
+Remaining scope: step 6 (DeepL button), if wanted.
 
-Known content gaps (fill anytime once live): "Open Questions" has 1 card,
+Known content gaps (fill anytime in the edit mode): "Open Questions" has 1 card,
 "Get-to-know" category is empty.
 
 ## Later / parking lot
