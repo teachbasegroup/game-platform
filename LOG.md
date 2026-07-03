@@ -5,6 +5,21 @@ One entry per work session. Update this with every substantial change.
 
 ---
 
+## 2026-07-03 (later still) — Real age bands + welcome/camp games
+
+- Age bands changed to the program's real ones: **4-6 / 6-10 / 11-14** (+ all).
+  Existing cards remapped 6-8 → 4-6 and 9-12 → 6-10; the 11-14 band starts
+  empty and gets filled by retagging cards in the edit mode.
+- Eight new games written bilingually and seeded: **Kennenlernen** gets Intro
+  Questions (5 cards), Name Ball, Who's Missing; **Energizers** gets Kelvin
+  Says, Gotcha!, Trolls-Wizards-Giants, Ninja; **Ruhe & Fokus** gets I'm Going
+  to a Picnic. All published, pending the team's content review.
+- The game form gained a **category selector**, so games can be moved between
+  categories in the app.
+- Database changes live in `supabase/migration-age-bands-and-new-games.sql`
+  (run once in the SQL editor); `setup.sql` updated to match, so a fresh
+  rebuild still produces the current state.
+
 ## 2026-07-03 (later) — Edit mode
 
 - The app now has a built-in **edit mode**: a quiet "edit" link in the footer

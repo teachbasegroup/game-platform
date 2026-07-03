@@ -29,7 +29,8 @@ const FONT = {
 const TYPE = { label: 11, meta: 13, body: 15, h2: 20, h1: 24 };
 /* spacing: multiples of 8 only */
 
-const AGE_COLORS = { "6-8": COLOR.red, "9-12": COLOR.blue, "all": COLOR.yellow };
+const AGES = ["4-6", "6-10", "11-14"];
+const AGE_COLORS = { "4-6": COLOR.red, "6-10": COLOR.blue, "11-14": COLOR.purple, "all": COLOR.yellow };
 
 /* ═══ DATABASE — Supabase project config.
    Safe to publish: the anon key only allows what the database rules (RLS)
@@ -147,6 +148,7 @@ const UI = {
   duration: { en: "Duration", de: "Dauer" },
   materials: { en: "Materials", de: "Material" },
   tagsLabel: { en: "Tags", de: "Tags" },
+  categoryLabel: { en: "Category", de: "Kategorie" },
   cardText: { en: "Card text", de: "Kartentext" },
   hintOptional: { en: "Hint (optional)", de: "Hinweis (optional)" },
 };
@@ -398,6 +400,7 @@ function GameForm({ mode, game, categoryId, categories, onDone, onCancel }) {
     age: row.age || "all",
     tags: row.tags || [],
     status: row.status || "draft",
+    category_id: row.category_id || categoryId,
   });
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -420,12 +423,12 @@ function GameForm({ mode, game, categoryId, categories, onDone, onCancel }) {
       tip_en: nn(f.tip.en), tip_de: nn(f.tip.de),
       type: f.type, age: f.type === "activity" ? f.age : null,
       tags: f.tags, status: f.status,
+      category_id: f.category_id,
     };
     let error;
     if (mode === "new") {
-      const cat = categories.find(c => c.id === categoryId);
+      const cat = categories.find(c => c.id === f.category_id);
       data.id = uniqueSlug(slugify(f.title.en || f.title.de), categories.flatMap(c => c.games.map(g => g.id)));
-      data.category_id = categoryId;
       data.sort_order = Math.max(0, ...cat.games.map(g => g.sort || 0)) + 1;
       ({ error } = await db.from("games").insert(data));
     } else {
@@ -455,6 +458,10 @@ function GameForm({ mode, game, categoryId, categories, onDone, onCancel }) {
       <form onSubmit={submit}>
         <BiField lab={ui("title")} value={f.title} onChange={set("title")} />
         <BiField lab={ui("subtitle")} value={f.subtitle} onChange={set("subtitle")} />
+        <Field lab={ui("categoryLabel")}>
+          <ToggleRow value={f.category_id} onChange={set("category_id")}
+            options={categories.map(c => ({ value: c.id, text: t(c.title) }))} />
+        </Field>
         <Field lab={ui("typeLabel")}>
           <ToggleRow value={f.type} onChange={set("type")} options={[
             { value: "activity", text: ui("typeActivity") },
@@ -467,7 +474,7 @@ function GameForm({ mode, game, categoryId, categories, onDone, onCancel }) {
         {f.type === "activity" && (
           <Field lab={ui("age")}>
             <ToggleRow value={f.age} onChange={set("age")} options={
-              ["6-8", "9-12", "all"].map(a => ({ value: a, text: a === "all" ? ui("allAges") : a }))
+              [...AGES, "all"].map(a => ({ value: a, text: a === "all" ? ui("allAges") : a }))
             } />
           </Field>
         )}
@@ -554,7 +561,7 @@ function CardForm({ card, game, onDone, onCancel }) {
       <BiField lab={ui("hintOptional")} value={f.hint} onChange={set("hint")} rows={2} />
       <Field lab={ui("age")}>
         <ToggleRow value={f.age} onChange={set("age")} options={
-          ["6-8", "9-12", "all"].map(a => ({ value: a, text: a === "all" ? ui("allAges") : a }))
+          [...AGES, "all"].map(a => ({ value: a, text: a === "all" ? ui("allAges") : a }))
         } />
       </Field>
       <Field lab={ui("statusLabel")}>
@@ -766,7 +773,9 @@ function App() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const refresh = () => loadContent().then(setCategories).catch(e => { console.error(e); setLoadError(true); });
+  const refresh = () => loadContent()
+    .then(data => { setCategories(data); return data; })
+    .catch(e => { console.error(e); setLoadError(true); });
 
   /* load on start; reload when the login state changes (drafts appear/disappear) */
   useEffect(() => { refresh(); }, [session ? session.user.id : null]);
@@ -947,9 +956,10 @@ function App() {
             <GameForm mode={gameForm.mode} game={gameForm.game} categoryId={gameForm.catId} categories={categories}
               onCancel={() => { setGameForm(null); gameForm.mode === "new" ? openCat(gameForm.catId) : openGame(gameForm.game.id); }}
               onDone={(id) => {
-                refresh().then(() => {
+                refresh().then((data) => {
                   setGameForm(null);
-                  if (id) openGame(id);
+                  const home = id && data && data.find(c => c.games.some(g => g.id === id));
+                  if (home) { setCatId(home.id); setGameId(id); setView("game"); }
                   else { setView("category"); setGameId(null); }
                 });
               }} />
