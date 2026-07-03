@@ -5,6 +5,16 @@ One entry per work session. Update this with every substantial change.
 
 ---
 
+## 2026-07-03 (evening) — Build guard for Netlify credits
+
+- Netlify's free plan meters usage in credits (300/month); each deploy costs
+  15, and the build day burned ~50%. Traffic is nearly free by comparison.
+- Added `netlify.toml` with an ignore rule: a push only triggers a deploy when
+  `index.html` (or the rule itself) changed. Documentation and future
+  content-backup commits no longer consume build credits.
+- Reminder that already held: content edits go through Supabase and never
+  touch Netlify at all.
+
 ## 2026-07-03 (evening) — Rename to Cellform, first content review
 
 - Working name changed **TeachBase → Cellform** until the team decides whether

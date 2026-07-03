@@ -1,0 +1,14 @@
+# Netlify build settings.
+#
+# The "ignore" command decides whether a push needs a new deploy:
+# it compares the pushed commit with the last deployed one and only
+# builds when the app itself (or this file) changed. Commits that touch
+# only documentation (LOG.md, PLAN.md, …) or content backups deploy
+# nothing — and cost no build credits.
+#
+# How it works: the command exits with 0 ("no difference") to SKIP the
+# build, non-zero to run it.
+
+[build]
+  publish = "."
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html netlify.toml"
