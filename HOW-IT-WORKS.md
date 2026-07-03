@@ -79,6 +79,31 @@ The app carries a so-called **anon key** — a visitor badge baked into the code
 It looks secret but is not: it only opens what the rules allow visitors anyway.
 That is why it can safely sit in a public repository.
 
+## Editing content in the app
+
+At the very bottom of the site sits a quiet **bearbeiten** link. It leads to the
+team sign-in; after that, a black bar marks the edit mode and the site grows
+editing controls everywhere:
+
+- **Add** — every category shows a dashed "+ Neues Spiel" tile. New games start
+  as drafts on purpose, safe to build in peace.
+- **Edit** — open a game → "Spiel bearbeiten": every field with English and
+  German side by side, plus tags, category, and type. Card decks additionally
+  get a card list with add, edit, and delete.
+- **Publish** — one button flips a game or a single card between *Entwurf* and
+  *veröffentlicht*. Drafts are invisible to teachers — the database refuses to
+  hand them out, no matter which app asks.
+- **Delete** — at the bottom of "Spiel bearbeiten", in red, and it asks before
+  acting. When unsure, draft instead of delete — a draft can come back.
+
+Every *Speichern* writes straight to the database. There is no "save all" and
+no deploy — what you saved is what the next page load shows.
+
+**Who can edit:** whoever has a team account. Accounts are created in the
+Supabase dashboard (Authentication → Users), and public self-registration is
+switched off — so the list of accounts *is* the entire access control. One
+account per person, no shared logins.
+
 ## Glossary
 
 - **frontend / backend** — what you see and tap (our app) / what stores and protects data behind it (Supabase).
@@ -90,3 +115,5 @@ That is why it can safely sit in a public repository.
 - **RLS (row level security)** — the database's house rules: who may see or change which rows.
 - **draft / published** — the visibility switch on every game and card.
 - **seed** — the starting content poured into a fresh database (the bottom half of setup.sql).
+- **edit mode** — the app's built-in editing view: footer "bearbeiten", team sign-in required.
+- **session** — the signed-in state after login; the browser remembers it between visits.
