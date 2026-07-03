@@ -8,19 +8,22 @@
 --    Kelvin Says, Gotcha, Trolls-Wizards-Giants, Ninja, Picnic).
 -- ═══════════════════════════════════════════════════════════════════
 
--- ── New age bands (the rules that guard the age column) ──
-alter table games drop constraint games_age_check;
-alter table games add constraint games_age_check
-  check (age in ('4-6','6-10','11-14','all'));
-alter table cards drop constraint cards_age_check;
-alter table cards add constraint cards_age_check
-  check (age in ('4-6','6-10','11-14','all'));
+-- ── New age bands ──
+-- Order matters: remove the old rules first, remap the data, and only then
+-- install the new rules — a rule can only be added when every row obeys it.
 
--- ── Remap existing content ──
+alter table games drop constraint games_age_check;
+alter table cards drop constraint cards_age_check;
+
 update cards set age = '4-6'  where age = '6-8';
 update cards set age = '6-10' where age = '9-12';
 update games set age = '4-6'  where age = '6-8';
 update games set age = '6-10' where age = '9-12';
+
+alter table games add constraint games_age_check
+  check (age in ('4-6','6-10','11-14','all'));
+alter table cards add constraint cards_age_check
+  check (age in ('4-6','6-10','11-14','all'));
 
 -- ── New games ──
 
