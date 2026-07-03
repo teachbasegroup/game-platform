@@ -37,11 +37,16 @@ const AGE_COLORS = { "6-8": COLOR.red, "9-12": COLOR.blue, "all": COLOR.yellow }
 const SUPABASE_URL = "https://akfppsmopgezbfcnwwze.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrZnBwc21vcGdlemJmY253d3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNjk2MjgsImV4cCI6MjA5ODY0NTYyOH0.684zS-3wb8evgOowLtJ7ohh4GdawoVZR_BIqEyoIBUk";
 
+/* One shared client: it holds the team login session (when there is one) and
+   automatically sends it with every query — so the same code reads published
+   content as a visitor and everything as a signed-in team member. */
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 /* Fetch all content and rebuild the nested categories → games → cards shape
    the components render. Bilingual columns (title_en / title_de) become
-   { en, de } objects, matching how the content looked when it lived here. */
+   { en, de } objects, matching how the content looked when it lived here.
+   Each game/card keeps its raw database row in _row — the edit forms need it. */
 async function loadContent() {
-  const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const [cats, games, cards] = await Promise.all([
     db.from("categories").select("*").order("sort_order"),
     db.from("games").select("*").order("sort_order"),
@@ -59,6 +64,8 @@ async function loadContent() {
     games: games.data.filter(g => g.category_id === c.id).map(g => ({
       id: g.id,
       type: g.type,
+      status: g.status,
+      sort: g.sort_order,
       title: bi(g, "title"),
       subtitle: bi(g, "subtitle"),
       meta: { size: bi(g, "size"), time: bi(g, "time"), materials: bi(g, "materials") },
@@ -67,10 +74,15 @@ async function loadContent() {
       setup: bi(g, "setup"),
       how: bi(g, "how"),
       tip: bi(g, "tip"),
+      _row: g,
       prompts: cards.data.filter(k => k.game_id === g.id).map(k => ({
+        dbId: k.id,
+        status: k.status,
+        sort: k.sort_order,
         text: bi(k, "text"),
         hint: bi(k, "hint"),
         age: k.age,
+        _row: k,
       })),
     })),
   }));
@@ -101,6 +113,42 @@ const UI = {
     de: "Die Spiele konnten nicht geladen werden. Prüf deine Verbindung und lade die Seite neu.",
   },
   retry: { en: "Reload", de: "Neu laden" },
+  /* edit mode */
+  edit: { en: "edit", de: "bearbeiten" },
+  editMode: { en: "Edit mode", de: "Bearbeitungsmodus" },
+  done: { en: "Done", de: "Fertig" },
+  signIn: { en: "Sign in", de: "Anmelden" },
+  signOut: { en: "Sign out", de: "Abmelden" },
+  email: { en: "E-mail", de: "E-Mail" },
+  password: { en: "Password", de: "Passwort" },
+  loginFailed: { en: "Sign-in failed. Check e-mail and password.", de: "Anmeldung fehlgeschlagen. Prüf E-Mail und Passwort." },
+  newGame: { en: "New game", de: "Neues Spiel" },
+  editGame: { en: "Edit game", de: "Spiel bearbeiten" },
+  deleteGame: { en: "Delete this game", de: "Dieses Spiel löschen" },
+  confirmDeleteGame: { en: "Delete this game and all its cards? This cannot be undone.", de: "Dieses Spiel und alle seine Karten löschen? Das kann nicht rückgängig gemacht werden." },
+  newCard: { en: "New card", de: "Neue Karte" },
+  editCard: { en: "Edit card", de: "Karte bearbeiten" },
+  deleteCard: { en: "delete", de: "löschen" },
+  confirmDeleteCard: { en: "Delete this card?", de: "Diese Karte löschen?" },
+  draft: { en: "draft", de: "Entwurf" },
+  published: { en: "published", de: "veröffentlicht" },
+  statusLabel: { en: "Status", de: "Status" },
+  save: { en: "Save", de: "Speichern" },
+  cancel: { en: "Cancel", de: "Abbrechen" },
+  titleRequired: { en: "The title is needed in both languages.", de: "Der Titel wird in beiden Sprachen benötigt." },
+  textRequired: { en: "The card text is needed in both languages.", de: "Der Kartentext wird in beiden Sprachen benötigt." },
+  saveError: { en: "Saving failed. Try again.", de: "Speichern fehlgeschlagen. Versuch es noch einmal." },
+  title: { en: "Title", de: "Titel" },
+  subtitle: { en: "Subtitle (optional)", de: "Untertitel (optional)" },
+  typeLabel: { en: "Type", de: "Art" },
+  typeDeck: { en: "Card deck", de: "Kartenspiel" },
+  typeActivity: { en: "Activity", de: "Aktivität" },
+  groupSize: { en: "Group size", de: "Gruppengröße" },
+  duration: { en: "Duration", de: "Dauer" },
+  materials: { en: "Materials", de: "Material" },
+  tagsLabel: { en: "Tags", de: "Tags" },
+  cardText: { en: "Card text", de: "Kartentext" },
+  hintOptional: { en: "Hint (optional)", de: "Hinweis (optional)" },
 };
 
 const TAGS = {
@@ -188,9 +236,9 @@ function NavBack({ onClick, text }) {
   );
 }
 
-function Btn({ onClick, children, secondary }) {
+function Btn({ onClick, children, secondary, type }) {
   return (
-    <button onClick={onClick} style={{
+    <button type={type || "button"} onClick={onClick} style={{
       fontFamily: FONT.serif, fontSize: TYPE.meta,
       background: "#FFF", color: secondary ? COLOR.muted : COLOR.ink,
       border: `2px solid ${secondary ? COLOR.line : COLOR.ink}`,
@@ -220,6 +268,390 @@ function Instructions({ game }) {
       {t(game.tip) && (
         <div style={{ fontFamily: FONT.serif, marginTop: 16, paddingLeft: 16, borderLeft: `3px solid ${COLOR.line}`, fontSize: TYPE.meta, color: COLOR.muted, lineHeight: 1.6 }}>
           <strong style={{ color: COLOR.body }}>{ui("tip")}:</strong> {t(game.tip)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══ EDIT MODE — team login + content editing. Writes go through the same
+   client; the database rules only allow them with a signed-in session. ═══ */
+
+function slugify(s) {
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "game";
+}
+function uniqueSlug(base, taken) {
+  let s = base, n = 2;
+  while (taken.includes(s)) s = `${base}-${n++}`;
+  return s;
+}
+
+const inputStyle = {
+  fontFamily: FONT.serif, fontSize: TYPE.body, color: COLOR.ink,
+  border: `2px solid ${COLOR.line}`, borderRadius: 2, padding: 8,
+  width: "100%", background: "#FFF",
+};
+
+function Field({ lab, children }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ ...label, marginBottom: 8 }}>{lab}</div>
+      {children}
+    </div>
+  );
+}
+
+/* one labeled field, two languages side by side */
+function BiField({ lab, value, onChange, rows }) {
+  const inp = (l) => rows
+    ? <textarea rows={rows} value={value[l] || ""} onChange={e => onChange({ ...value, [l]: e.target.value })} style={{ ...inputStyle, resize: "vertical" }} />
+    : <input value={value[l] || ""} onChange={e => onChange({ ...value, [l]: e.target.value })} style={inputStyle} />;
+  return (
+    <Field lab={lab}>
+      <div className="bi-grid">
+        {["en", "de"].map(l => (
+          <div key={l}>
+            <div style={{ ...label, color: COLOR.faint, marginBottom: 4 }}>{l.toUpperCase()}</div>
+            {inp(l)}
+          </div>
+        ))}
+      </div>
+    </Field>
+  );
+}
+
+function ToggleRow({ options, value, onChange }) {
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      {options.map(o => (
+        <button key={o.value} type="button" onClick={() => onChange(o.value)} style={{
+          fontFamily: FONT.serif, fontSize: TYPE.label, padding: "8px 16px",
+          border: `2px solid ${value === o.value ? COLOR.ink : COLOR.line}`,
+          borderRadius: 2, cursor: "pointer", minHeight: 40,
+          background: value === o.value ? COLOR.wash : "#FFF",
+          color: value === o.value ? COLOR.ink : COLOR.faint,
+        }}>{o.text}</button>
+      ))}
+    </div>
+  );
+}
+
+function DraftBadge() {
+  const { ui } = useT();
+  return (
+    <span style={{ ...label, border: `1px dashed ${COLOR.muted}`, padding: "2px 8px", borderRadius: 2, display: "inline-block" }}>
+      {ui("draft")}
+    </span>
+  );
+}
+
+function FormError({ children }) {
+  return children ? <p style={{ fontFamily: FONT.serif, fontSize: TYPE.meta, color: COLOR.red, marginBottom: 16 }}>{children}</p> : null;
+}
+
+function LoginView({ onBack, onSuccess }) {
+  const { ui } = useT();
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true); setErr(false);
+    const { error } = await db.auth.signInWithPassword({ email, password: pw });
+    setBusy(false);
+    if (error) setErr(true); else onSuccess();
+  };
+  return (
+    <div>
+      <NavBack onClick={onBack} text={ui("back")} />
+      <h2 style={{ fontFamily: FONT.serif, fontSize: TYPE.h2, fontWeight: 700, marginBottom: 24 }}>{ui("editMode")}</h2>
+      <form onSubmit={submit} style={{ maxWidth: 360 }}>
+        <Field lab={ui("email")}>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} autoComplete="email" required />
+        </Field>
+        <Field lab={ui("password")}>
+          <input type="password" value={pw} onChange={e => setPw(e.target.value)} style={inputStyle} autoComplete="current-password" required />
+        </Field>
+        <FormError>{err && ui("loginFailed")}</FormError>
+        <Btn type="submit">{busy ? "…" : ui("signIn")}</Btn>
+      </form>
+    </div>
+  );
+}
+
+/* add or edit one game; mode: "new" (needs categoryId) | "edit" (needs game) */
+function GameForm({ mode, game, categoryId, categories, onDone, onCancel }) {
+  const { t, ui } = useT();
+  const row = (game && game._row) || {};
+  const [f, setF] = useState({
+    title: { en: row.title_en || "", de: row.title_de || "" },
+    subtitle: { en: row.subtitle_en || "", de: row.subtitle_de || "" },
+    size: { en: row.size_en || "", de: row.size_de || "" },
+    time: { en: row.time_en || "", de: row.time_de || "" },
+    materials: { en: row.materials_en || "", de: row.materials_de || "" },
+    setup: { en: row.setup_en || "", de: row.setup_de || "" },
+    how: { en: row.how_en || "", de: row.how_de || "" },
+    tip: { en: row.tip_en || "", de: row.tip_de || "" },
+    type: row.type || "activity",
+    age: row.age || "all",
+    tags: row.tags || [],
+    status: row.status || "draft",
+  });
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (v) => setF(s => ({ ...s, [k]: v }));
+  const toggleTag = (tag) => setF(s => ({ ...s, tags: s.tags.includes(tag) ? s.tags.filter(x => x !== tag) : [...s.tags, tag] }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!f.title.en.trim() || !f.title.de.trim()) { setErr(ui("titleRequired")); return; }
+    setBusy(true); setErr(null);
+    const nn = (s) => (s && s.trim() ? s.trim() : null);
+    const data = {
+      title_en: f.title.en.trim(), title_de: f.title.de.trim(),
+      subtitle_en: nn(f.subtitle.en), subtitle_de: nn(f.subtitle.de),
+      size_en: nn(f.size.en), size_de: nn(f.size.de),
+      time_en: nn(f.time.en), time_de: nn(f.time.de),
+      materials_en: nn(f.materials.en), materials_de: nn(f.materials.de),
+      setup_en: nn(f.setup.en), setup_de: nn(f.setup.de),
+      how_en: nn(f.how.en), how_de: nn(f.how.de),
+      tip_en: nn(f.tip.en), tip_de: nn(f.tip.de),
+      type: f.type, age: f.type === "activity" ? f.age : null,
+      tags: f.tags, status: f.status,
+    };
+    let error;
+    if (mode === "new") {
+      const cat = categories.find(c => c.id === categoryId);
+      data.id = uniqueSlug(slugify(f.title.en || f.title.de), categories.flatMap(c => c.games.map(g => g.id)));
+      data.category_id = categoryId;
+      data.sort_order = Math.max(0, ...cat.games.map(g => g.sort || 0)) + 1;
+      ({ error } = await db.from("games").insert(data));
+    } else {
+      ({ error } = await db.from("games").update(data).eq("id", game.id));
+    }
+    setBusy(false);
+    if (error) { console.error(error); setErr(ui("saveError")); return; }
+    onDone(mode === "new" ? data.id : game.id);
+  };
+
+  const removeGame = async () => {
+    if (!window.confirm(ui("confirmDeleteGame"))) return;
+    setBusy(true);
+    const cardsRes = await db.from("cards").delete().eq("game_id", game.id);
+    const gameRes = cardsRes.error ? cardsRes : await db.from("games").delete().eq("id", game.id);
+    setBusy(false);
+    if (gameRes.error) { console.error(gameRes.error); setErr(ui("saveError")); return; }
+    onDone(null);
+  };
+
+  return (
+    <div>
+      <NavBack onClick={onCancel} text={ui("cancel")} />
+      <h2 style={{ fontFamily: FONT.serif, fontSize: TYPE.h2, fontWeight: 700, marginBottom: 24 }}>
+        {mode === "new" ? ui("newGame") : `${ui("editGame")}: ${t(game.title)}`}
+      </h2>
+      <form onSubmit={submit}>
+        <BiField lab={ui("title")} value={f.title} onChange={set("title")} />
+        <BiField lab={ui("subtitle")} value={f.subtitle} onChange={set("subtitle")} />
+        <Field lab={ui("typeLabel")}>
+          <ToggleRow value={f.type} onChange={set("type")} options={[
+            { value: "activity", text: ui("typeActivity") },
+            { value: "deck", text: ui("typeDeck") },
+          ]} />
+        </Field>
+        <BiField lab={ui("groupSize")} value={f.size} onChange={set("size")} />
+        <BiField lab={ui("duration")} value={f.time} onChange={set("time")} />
+        <BiField lab={ui("materials")} value={f.materials} onChange={set("materials")} />
+        {f.type === "activity" && (
+          <Field lab={ui("age")}>
+            <ToggleRow value={f.age} onChange={set("age")} options={
+              ["6-8", "9-12", "all"].map(a => ({ value: a, text: a === "all" ? ui("allAges") : a }))
+            } />
+          </Field>
+        )}
+        <Field lab={ui("tagsLabel")}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {Object.keys(TAGS).map(tag => (
+              <button key={tag} type="button" onClick={() => toggleTag(tag)} style={{
+                fontFamily: FONT.serif, fontSize: TYPE.label, padding: "8px 12px",
+                border: `2px solid ${f.tags.includes(tag) ? COLOR.ink : COLOR.line}`,
+                borderRadius: 2, cursor: "pointer", minHeight: 40,
+                background: f.tags.includes(tag) ? COLOR.wash : "#FFF",
+                color: f.tags.includes(tag) ? COLOR.ink : COLOR.faint,
+              }}>{t(TAGS[tag])}</button>
+            ))}
+          </div>
+        </Field>
+        <BiField lab={ui("setup")} value={f.setup} onChange={set("setup")} rows={3} />
+        <BiField lab={ui("howToPlay")} value={f.how} onChange={set("how")} rows={4} />
+        <BiField lab={ui("tip")} value={f.tip} onChange={set("tip")} rows={3} />
+        <Field lab={ui("statusLabel")}>
+          <ToggleRow value={f.status} onChange={set("status")} options={[
+            { value: "draft", text: ui("draft") },
+            { value: "published", text: ui("published") },
+          ]} />
+        </Field>
+        <FormError>{err}</FormError>
+        <div style={{ display: "flex", gap: 8, marginTop: 24 }}>
+          <Btn type="submit">{busy ? "…" : ui("save")}</Btn>
+          <Btn onClick={onCancel} secondary>{ui("cancel")}</Btn>
+        </div>
+      </form>
+      {mode === "edit" && (
+        <button type="button" onClick={removeGame} style={{
+          fontFamily: FONT.mono, fontSize: TYPE.label, letterSpacing: "0.08em",
+          color: COLOR.red, background: "none", border: "none", cursor: "pointer",
+          padding: 0, marginTop: 40, display: "block",
+        }}>{ui("deleteGame")}</button>
+      )}
+    </div>
+  );
+}
+
+/* add or edit one card of a deck game */
+function CardForm({ card, game, onDone, onCancel }) {
+  const { ui } = useT();
+  const row = (card && card._row) || {};
+  const [f, setF] = useState({
+    text: { en: row.text_en || "", de: row.text_de || "" },
+    hint: { en: row.hint_en || "", de: row.hint_de || "" },
+    age: row.age || "all",
+    status: row.status || "draft",
+  });
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (v) => setF(s => ({ ...s, [k]: v }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!f.text.en.trim() || !f.text.de.trim()) { setErr(ui("textRequired")); return; }
+    setBusy(true); setErr(null);
+    const nn = (s) => (s && s.trim() ? s.trim() : null);
+    const data = {
+      text_en: f.text.en.trim(), text_de: f.text.de.trim(),
+      hint_en: nn(f.hint.en), hint_de: nn(f.hint.de),
+      age: f.age, status: f.status,
+    };
+    let error;
+    if (card) {
+      ({ error } = await db.from("cards").update(data).eq("id", card.dbId));
+    } else {
+      data.game_id = game.id;
+      data.sort_order = Math.max(0, ...game.prompts.map(p => p.sort || 0)) + 1;
+      ({ error } = await db.from("cards").insert(data));
+    }
+    setBusy(false);
+    if (error) { console.error(error); setErr(ui("saveError")); return; }
+    onDone();
+  };
+
+  return (
+    <form onSubmit={submit} style={{ border: `2px solid ${COLOR.line}`, borderRadius: 4, padding: 16, marginBottom: 16 }}>
+      <div style={{ ...label, marginBottom: 16, color: COLOR.blue }}>{card ? ui("editCard") : ui("newCard")}</div>
+      <BiField lab={ui("cardText")} value={f.text} onChange={set("text")} rows={4} />
+      <BiField lab={ui("hintOptional")} value={f.hint} onChange={set("hint")} rows={2} />
+      <Field lab={ui("age")}>
+        <ToggleRow value={f.age} onChange={set("age")} options={
+          ["6-8", "9-12", "all"].map(a => ({ value: a, text: a === "all" ? ui("allAges") : a }))
+        } />
+      </Field>
+      <Field lab={ui("statusLabel")}>
+        <ToggleRow value={f.status} onChange={set("status")} options={[
+          { value: "draft", text: ui("draft") },
+          { value: "published", text: ui("published") },
+        ]} />
+      </Field>
+      <FormError>{err}</FormError>
+      <div style={{ display: "flex", gap: 8 }}>
+        <Btn type="submit">{busy ? "…" : ui("save")}</Btn>
+        <Btn onClick={onCancel} secondary>{ui("cancel")}</Btn>
+      </div>
+    </form>
+  );
+}
+
+/* the card list of a deck game, with add / edit / delete / publish */
+function CardManager({ game, onChanged }) {
+  const { t, ui } = useT();
+  const [editing, setEditing] = useState(null); // null | "new" | a prompt object
+
+  const del = async (p) => {
+    if (!window.confirm(ui("confirmDeleteCard"))) return;
+    const { error } = await db.from("cards").delete().eq("id", p.dbId);
+    if (!error) onChanged();
+  };
+  const flip = async (p) => {
+    const { error } = await db.from("cards")
+      .update({ status: p.status === "published" ? "draft" : "published" }).eq("id", p.dbId);
+    if (!error) onChanged();
+  };
+  const doneEditing = () => { setEditing(null); onChanged(); };
+
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ ...label, marginBottom: 16 }}>{ui("cards")} ({game.prompts.length})</div>
+      {editing && (
+        <CardForm card={editing === "new" ? null : editing} game={game} onDone={doneEditing} onCancel={() => setEditing(null)} />
+      )}
+      <div style={{ border: `1px solid ${COLOR.line}`, borderRadius: 4, marginBottom: 16 }}>
+        {game.prompts.length === 0 && (
+          <p style={{ fontFamily: FONT.serif, color: COLOR.faint, fontSize: TYPE.meta, padding: 24, textAlign: "center" }}>{ui("noPrompts")}</p>
+        )}
+        {game.prompts.map((p, i) => (
+          <div key={p.dbId} style={{
+            display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+            borderTop: i > 0 ? `1px solid ${COLOR.hairline}` : "none",
+            borderLeft: `4px solid ${AGE_COLORS[p.age] || COLOR.muted}`,
+            opacity: p.status === "draft" ? 0.65 : 1,
+          }}>
+            <span style={{ fontFamily: FONT.serif, fontSize: TYPE.meta, color: COLOR.body, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {(t(p.text) || "").split("\n")[0]}
+            </span>
+            <button type="button" onClick={() => flip(p)} title={ui("statusLabel")} style={{
+              ...label, cursor: "pointer", background: "none", border: `1px ${p.status === "draft" ? "dashed" : "solid"} ${p.status === "draft" ? COLOR.muted : COLOR.green}`,
+              color: p.status === "draft" ? COLOR.muted : COLOR.green, padding: "2px 8px", borderRadius: 2, flexShrink: 0,
+            }}>{ui(p.status)}</button>
+            <button type="button" onClick={() => setEditing(p)} className="row-action">{ui("edit")}</button>
+            <button type="button" onClick={() => del(p)} className="row-action" style={{ color: COLOR.red }}>{ui("deleteCard")}</button>
+          </div>
+        ))}
+      </div>
+      {!editing && <Btn onClick={() => setEditing("new")}>+ {ui("newCard")}</Btn>}
+    </div>
+  );
+}
+
+/* what the game view becomes in edit mode */
+function EditGameView({ game, onBack, onEditDetails, onChanged }) {
+  const { t, ui } = useT();
+  const flip = async () => {
+    const { error } = await db.from("games")
+      .update({ status: game.status === "published" ? "draft" : "published" }).eq("id", game.id);
+    if (!error) onChanged();
+  };
+  return (
+    <div>
+      <NavBack onClick={onBack} text={ui("back")} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+        <div>
+          <h2 style={{ fontFamily: FONT.serif, fontSize: TYPE.h2, fontWeight: 700, marginBottom: 8 }}>{t(game.title)}</h2>
+          {game.status === "draft" && <DraftBadge />}
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Btn onClick={onEditDetails}>{ui("editGame")}</Btn>
+          <Btn onClick={flip} secondary>{ui("statusLabel")}: {ui(game.status)}</Btn>
+        </div>
+      </div>
+      {game.type === "deck" ? (
+        <CardManager game={game} onChanged={onChanged} />
+      ) : (
+        <div>
+          <div style={{ marginBottom: 16 }}><AgeBadge age={game.age} /></div>
+          <Meta m={game.meta} />
+          <Tags tags={game.tags} />
+          <Instructions game={game} />
         </div>
       )}
     </div>
@@ -322,9 +754,22 @@ function App() {
   /* content: null = loading, [] and up = loaded; loadError switches to the error view */
   const [categories, setCategories] = useState(null);
   const [loadError, setLoadError] = useState(false);
+
+  /* team login: session != null after sign-in; editMode is entered on purpose */
+  const [session, setSession] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [gameForm, setGameForm] = useState(null); // { mode: "new", catId } | { mode: "edit", game }
+
   useEffect(() => {
-    loadContent().then(setCategories).catch(e => { console.error(e); setLoadError(true); });
+    db.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: sub } = db.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
   }, []);
+
+  const refresh = () => loadContent().then(setCategories).catch(e => { console.error(e); setLoadError(true); });
+
+  /* load on start; reload when the login state changes (drafts appear/disappear) */
+  useEffect(() => { refresh(); }, [session ? session.user.id : null]);
 
   useEffect(() => {
     try { localStorage.setItem("tb-lang", lang); } catch (e) {}
@@ -334,9 +779,22 @@ function App() {
   const cat = categories && categories.find(c => c.id === catId);
   const game = cat && cat.games.find(g => g.id === gameId);
 
-  const goHome = () => { setView("home"); setCatId(null); setGameId(null); };
-  const openCat = (id) => { setCatId(id); setView("category"); setGameId(null); };
+  const goHome = () => { setView("home"); setCatId(null); setGameId(null); setGameForm(null); };
+  const openCat = (id) => { setCatId(id); setView("category"); setGameId(null); setGameForm(null); };
   const openGame = (id) => { setGameId(id); setView("game"); };
+
+  /* if the open game/category vanished after a reload (e.g. sign-out hid a draft), step back */
+  useEffect(() => {
+    if (!categories || view === "gameform") return;
+    if (catId && !categories.find(c => c.id === catId)) goHome();
+    else if (gameId && cat && !cat.games.find(g => g.id === gameId)) { setView("category"); setGameId(null); }
+  }, [categories]);
+
+  const signOut = async () => {
+    await db.auth.signOut();
+    setEditMode(false);
+    goHome();
+  };
 
   const t = (field) => (field && typeof field === "object" ? field[lang] : field);
   const ui = (key) => UI[key][lang];
@@ -353,7 +811,21 @@ function App() {
         .tile.empty { opacity: 0.3; cursor: default; }
         .tile.empty:hover { transform: none; }
         .lang-btn { font-family: ${FONT.mono}; font-size: ${TYPE.label}px; letter-spacing: 0.1em; background: none; border: none; cursor: pointer; padding: 8px; }
+        .bi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 540px) { .bi-grid { grid-template-columns: 1fr; } }
+        input:focus, textarea:focus, button:focus-visible { outline: 2px solid ${COLOR.blue}; outline-offset: 1px; }
+        .row-action { font-family: ${FONT.mono}; font-size: ${TYPE.label}px; letter-spacing: 0.08em; color: ${COLOR.muted}; background: none; border: none; cursor: pointer; padding: 8px 0; flex-shrink: 0; }
       `}</style>
+
+      {editMode && (
+        <div style={{ background: COLOR.ink, padding: "8px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 10 }}>
+          <span style={{ ...label, color: "#FFF" }}>{ui("editMode")}</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="lang-btn" style={{ color: "#FFF", fontWeight: 700 }} onClick={() => { setEditMode(false); setGameForm(null); if (view === "gameform" || view === "login") goHome(); }}>{ui("done")}</button>
+            <button className="lang-btn" style={{ color: COLOR.faint }} onClick={signOut}>{ui("signOut")}</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "48px 24px 80px" }}>
 
@@ -398,7 +870,7 @@ function App() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               {categories.map(c => {
                 const count = c.games.length;
-                const isEmpty = count === 0;
+                const isEmpty = count === 0 && !editMode;
                 return (
                   <div key={c.id} className={`tile ${isEmpty ? "empty" : ""}`}
                     onClick={() => !isEmpty && openCat(c.id)}
@@ -427,25 +899,32 @@ function App() {
               <h2 style={{ fontFamily: FONT.serif, fontSize: TYPE.h2, fontWeight: 700, marginBottom: 4 }}>{t(cat.title)}</h2>
               <p style={{ fontFamily: FONT.serif, fontSize: TYPE.meta, color: COLOR.muted }}>{t(cat.desc)}</p>
             </div>
-            {cat.games.length === 0 ? (
+            {cat.games.length === 0 && !editMode ? (
               <p style={{ fontFamily: FONT.serif, color: COLOR.faint, fontSize: TYPE.meta, padding: "40px 0", textAlign: "center" }}>{ui("noGames")}</p>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 {cat.games.map(g => (
                   <div key={g.id} className="tile" onClick={() => openGame(g.id)}
-                    style={{ minHeight: 104, display: "flex", flexDirection: "column", justifyContent: "space-between" }}
+                    style={{ minHeight: 104, display: "flex", flexDirection: "column", justifyContent: "space-between", opacity: g.status === "draft" ? 0.75 : 1 }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = cat.color; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = COLOR.line; }}
                   >
                     <div>
                       <div style={{ fontFamily: FONT.serif, fontSize: TYPE.body, fontWeight: 700, marginBottom: 4 }}>{t(g.title)}</div>
                       {g.subtitle && <div style={{ fontFamily: FONT.serif, fontSize: TYPE.meta, color: COLOR.muted }}>{t(g.subtitle)}</div>}
+                      {g.status === "draft" && <div style={{ marginTop: 8 }}><DraftBadge /></div>}
                     </div>
                     <div style={{ ...metaStyle, fontSize: TYPE.label, marginTop: 8 }}>
                       {g.type === "deck" ? `${g.prompts.length} ${ui("cards")}` : ui("activity")} · {t(g.meta.time)}
                     </div>
                   </div>
                 ))}
+                {editMode && (
+                  <div className="tile" onClick={() => { setGameForm({ mode: "new", catId: cat.id }); setView("gameform"); }}
+                    style={{ minHeight: 104, border: `2px dashed ${COLOR.line}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={label}>+ {ui("newGame")}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -453,15 +932,45 @@ function App() {
 
         {view === "game" && game && (
           <div className="fade-in">
-            {game.type === "deck"
-              ? <DeckPlayer game={game} onBack={() => openCat(catId)} />
-              : <ActivityCard game={game} onBack={() => openCat(catId)} />
+            {editMode
+              ? <EditGameView game={game} onBack={() => openCat(catId)} onChanged={refresh}
+                  onEditDetails={() => { setGameForm({ mode: "edit", game }); setView("gameform"); }} />
+              : game.type === "deck"
+                ? <DeckPlayer game={game} onBack={() => openCat(catId)} />
+                : <ActivityCard game={game} onBack={() => openCat(catId)} />
             }
           </div>
         )}
 
+        {view === "gameform" && gameForm && categories && (
+          <div className="fade-in">
+            <GameForm mode={gameForm.mode} game={gameForm.game} categoryId={gameForm.catId} categories={categories}
+              onCancel={() => { setGameForm(null); gameForm.mode === "new" ? openCat(gameForm.catId) : openGame(gameForm.game.id); }}
+              onDone={(id) => {
+                refresh().then(() => {
+                  setGameForm(null);
+                  if (id) openGame(id);
+                  else { setView("category"); setGameId(null); }
+                });
+              }} />
+          </div>
+        )}
+
+        {view === "login" && (
+          <div className="fade-in">
+            <LoginView onBack={goHome} onSuccess={() => { setEditMode(true); goHome(); }} />
+          </div>
+        )}
+
         <footer style={{ marginTop: 80, paddingTop: 16, borderTop: `1px solid ${COLOR.hairline}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ ...label, color: COLOR.faint }}>TeachBase — {ui("libraryTitle")}</span>
+          <span style={{ ...label, color: COLOR.faint }}>
+            TeachBase — {ui("libraryTitle")}
+            <span style={{ margin: "0 8px", color: COLOR.hairline }}>·</span>
+            <button className="lang-btn" style={{ color: COLOR.faint, padding: 0, textTransform: "lowercase", letterSpacing: "0.12em" }}
+              onClick={() => { if (session) { setEditMode(true); } else { setView("login"); } }}>
+              {ui("edit")}
+            </button>
+          </span>
           <div style={{ display: "flex", gap: 3 }}>
             {[COLOR.red, COLOR.blue, COLOR.yellow, COLOR.green, COLOR.purple].map((c, i) => (
               <span key={i} style={{ display: "inline-block", width: 5, height: 5, background: c }} />

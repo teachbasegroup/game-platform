@@ -5,6 +5,25 @@ One entry per work session. Update this with every substantial change.
 
 ---
 
+## 2026-07-03 (later) — Edit mode
+
+- The app now has a built-in **edit mode**: a quiet "edit" link in the footer
+  leads to a team sign-in (Supabase Auth, email + password). Signed in, the
+  team can add and edit games, manage a deck's cards (add / edit / delete /
+  publish), flip anything between **draft** and **published**, and delete
+  games. Drafts show with a dashed badge and stay invisible to teachers.
+- Team accounts are created in the Supabase dashboard (Authentication →
+  Users). **Public sign-ups must stay disabled** there — the database rules
+  give every signed-in account full write access, so who gets an account is
+  the entire access control.
+- New games get their web address (slug) generated from the English title;
+  new games and cards start as drafts on purpose.
+- Verified headless: visitor flow unchanged (deck player click-through),
+  login form appears, wrong password shows the proper bilingual error.
+  Authenticated write flows tested live after the first team account existed.
+
+---
+
 ## 2026-07-03 — Content moves to the database (Supabase)
 
 - All game content now lives in **Supabase** instead of inside the code:
