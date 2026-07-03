@@ -1,4 +1,4 @@
-# TeachBase Game Platform — Project Plan
+# Cellform Game Platform — Project Plan
 
 *Written July 2026 · revised after scope corrections*
 

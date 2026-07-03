@@ -5,6 +5,18 @@ One entry per work session. Update this with every substantial change.
 
 ---
 
+## 2026-07-03 (evening) — Rename to Cellform, first content review
+
+- Working name changed **TeachBase → Cellform** until the team decides whether
+  the platform runs under the organisation's own name. Changed in the app
+  (title, header, footer) and all docs; the GitHub organisation URL still
+  reads teachbasegroup — renaming that touches the Netlify connection, so it
+  waits for the final name.
+- First round of content review fixes (via SQL, mirrored in setup.sql):
+  Would You Rather votes by arm up/down or step-to-a-side instead of "A or B",
+  pace rule cut; What Am I? drops the 20-questions cap — stuck groups get the
+  card's hint read aloud; Who's Missing? rewritten so the sequence is clear.
+
 ## 2026-07-03 (later still) — Real age bands + welcome/camp games
 
 - Age bands changed to the program's real ones: **4-6 / 6-10 / 11-14** (+ all).

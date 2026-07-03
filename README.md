@@ -1,4 +1,4 @@
-# TeachBase Game Platform
+# Cellform Game Platform
 
 Bilingual (EN/DE) game library for teachers running kids' tech and engineering
 camps and classes: break games, energizers, focus and team activities — with

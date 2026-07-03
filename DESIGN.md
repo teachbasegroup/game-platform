@@ -44,5 +44,5 @@ assembled from these. If a new component is unavoidable, it follows the same rul
 
 ## Identity
 
-- Brand is **TeachBase**. No organisation names, no locations, no personal names
+- Brand is **Cellform** (working title until the team settles the name). No organisation names, no locations, no personal names
   anywhere in code, content, commits, or docs. This repo is public.
