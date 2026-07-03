@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -30,6 +31,51 @@ const TYPE = { label: 11, meta: 13, body: 15, h2: 20, h1: 24 };
 
 const AGE_COLORS = { "6-8": COLOR.red, "9-12": COLOR.blue, "all": COLOR.yellow };
 
+/* ═══ DATABASE — Supabase project config.
+   Safe to publish: the anon key only allows what the database rules (RLS)
+   permit — reading published content. See supabase/setup.sql. ═══ */
+const SUPABASE_URL = "https://akfppsmopgezbfcnwwze.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrZnBwc21vcGdlemJmY253d3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNjk2MjgsImV4cCI6MjA5ODY0NTYyOH0.684zS-3wb8evgOowLtJ7ohh4GdawoVZR_BIqEyoIBUk";
+
+/* Fetch all content and rebuild the nested categories → games → cards shape
+   the components render. Bilingual columns (title_en / title_de) become
+   { en, de } objects, matching how the content looked when it lived here. */
+async function loadContent() {
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const [cats, games, cards] = await Promise.all([
+    db.from("categories").select("*").order("sort_order"),
+    db.from("games").select("*").order("sort_order"),
+    db.from("cards").select("*").order("sort_order"),
+  ]);
+  const err = cats.error || games.error || cards.error;
+  if (err) throw err;
+
+  const bi = (row, f) => (row[f + "_en"] == null ? null : { en: row[f + "_en"], de: row[f + "_de"] });
+  return cats.data.map(c => ({
+    id: c.id,
+    title: bi(c, "title"),
+    desc: bi(c, "desc"),
+    color: COLOR[c.color] || COLOR.muted,
+    games: games.data.filter(g => g.category_id === c.id).map(g => ({
+      id: g.id,
+      type: g.type,
+      title: bi(g, "title"),
+      subtitle: bi(g, "subtitle"),
+      meta: { size: bi(g, "size"), time: bi(g, "time"), materials: bi(g, "materials") },
+      tags: g.tags || [],
+      age: g.age,
+      setup: bi(g, "setup"),
+      how: bi(g, "how"),
+      tip: bi(g, "tip"),
+      prompts: cards.data.filter(k => k.game_id === g.id).map(k => ({
+        text: bi(k, "text"),
+        hint: bi(k, "hint"),
+        age: k.age,
+      })),
+    })),
+  }));
+}
+
 /* ═══ UI STRINGS ═══ */
 const UI = {
   libraryTitle: { en: "Game Library", de: "Spielebibliothek" },
@@ -49,6 +95,12 @@ const UI = {
   tip: { en: "Tip", de: "Tipp" },
   setup: { en: "Setup", de: "Vorbereitung" },
   howToPlay: { en: "How to play", de: "So geht's" },
+  loading: { en: "Loading …", de: "Lädt …" },
+  loadError: {
+    en: "Couldn't load the games. Check your connection and reload the page.",
+    de: "Die Spiele konnten nicht geladen werden. Prüf deine Verbindung und lade die Seite neu.",
+  },
+  retry: { en: "Reload", de: "Neu laden" },
 };
 
 const TAGS = {
@@ -64,333 +116,6 @@ const TAGS = {
   "transition": { en: "transition", de: "Übergang" },
 };
 
-/* ═══ CONTENT — moves to Supabase in build step 2; keep shape identical to data model ═══ */
-const CATEGORIES = [
-  {
-    id: "prompt",
-    title: { en: "Q&A / Prompt Games", de: "Frage- & Kartenspiele" },
-    desc: { en: "Draw a card, read it aloud.", de: "Karte ziehen, laut vorlesen." },
-    color: COLOR.yellow,
-    games: [
-      {
-        id: "would-you-rather",
-        title: { en: "Would You Rather", de: "Würdest du lieber …" },
-        subtitle: { en: "Engineering Edition", de: "Engineering-Edition" },
-        type: "deck",
-        meta: {
-          size: { en: "any", de: "beliebig" },
-          time: { en: "2–10 min", de: "2–10 Min" },
-          materials: { en: "nothing", de: "nichts" },
-        },
-        tags: ["break", "waiting", "trickle-in", "cooldown"],
-        setup: {
-          en: "Nothing to prepare. Decide how kids vote: move to the two sides of the room, raise hands, or shout.",
-          de: "Nichts vorzubereiten. Entscheide, wie abgestimmt wird: auf zwei Seiten des Raums stellen, Hand heben oder rufen.",
-        },
-        how: {
-          en: "Read the prompt aloud. Kids choose A or B. Ask 1–2 kids WHY. Keep it fast — about one prompt per minute.",
-          de: "Lies die Frage laut vor. Die Kinder wählen A oder B. Frag 1–2 Kinder nach dem WARUM. Halt das Tempo hoch — etwa eine Frage pro Minute.",
-        },
-        tip: {
-          en: "If it gets rowdy, switch to silent vote — eyes closed, raise hands. Works great post-lunch.",
-          de: "Wenn es zu wild wird: stille Abstimmung — Augen zu, Hand heben. Funktioniert super nach dem Mittagessen.",
-        },
-        prompts: [
-          {
-            text: {
-              en: "Have a robot dog that only barks in music\n— or —\nA cat that glows in the dark",
-              de: "Einen Roboterhund haben, der nur in Musik bellt\n— oder —\nEine Katze, die im Dunkeln leuchtet",
-            }, age: "6-8",
-          },
-          {
-            text: {
-              en: "Have shoes that make you jump super high\n— or —\nGloves that make you super strong",
-              de: "Schuhe haben, mit denen du super hoch springen kannst\n— oder —\nHandschuhe, die dich super stark machen",
-            }, age: "6-8",
-          },
-          {
-            text: {
-              en: "Live in a treehouse with a slide to the ground\n— or —\nLive underwater in a bubble house",
-              de: "In einem Baumhaus mit Rutsche bis zum Boden wohnen\n— oder —\nUnter Wasser in einem Blasenhaus wohnen",
-            }, age: "6-8",
-          },
-          {
-            text: {
-              en: "Have a backpack that never runs out of snacks\n— or —\nA pencil that draws things that become real",
-              de: "Einen Rucksack haben, in dem die Snacks nie ausgehen\n— oder —\nEinen Stift, dessen Zeichnungen echt werden",
-            }, age: "6-8",
-          },
-          {
-            text: {
-              en: "Be able to fly but only 20cm off the ground\n— or —\nBe invisible but only when nobody is looking",
-              de: "Fliegen können, aber nur 20 cm über dem Boden\n— oder —\nUnsichtbar sein, aber nur wenn niemand hinschaut",
-            }, age: "9-12",
-          },
-          {
-            text: {
-              en: "Have a 3D printer that takes 1 week per print\n— or —\nA printer that prints money but only 1 cent at a time",
-              de: "Einen 3D-Drucker haben, der 1 Woche pro Druck braucht\n— oder —\nEinen Drucker, der Geld druckt, aber nur 1 Cent auf einmal",
-            }, age: "9-12",
-          },
-          {
-            text: {
-              en: "Know every programming language but forget how to write by hand\n— or —\nWrite beautifully but never use a computer again",
-              de: "Jede Programmiersprache können, aber das Schreiben mit der Hand vergessen\n— oder —\nWunderschön schreiben, aber nie wieder einen Computer benutzen",
-            }, age: "9-12",
-          },
-          {
-            text: {
-              en: "Have a time machine that only goes 5 minutes into the future\n— or —\nA teleporter that only works to places you've already been",
-              de: "Eine Zeitmaschine haben, die nur 5 Minuten in die Zukunft reist\n— oder —\nEinen Teleporter, der nur zu Orten funktioniert, an denen du schon warst",
-            }, age: "9-12",
-          },
-          {
-            text: {
-              en: "Build anything but it falls apart after one day\n— or —\nBuild only one thing ever but it lasts forever",
-              de: "Alles bauen können, aber es zerfällt nach einem Tag\n— oder —\nNur ein einziges Ding bauen dürfen, aber es hält für immer",
-            }, age: "all",
-          },
-          {
-            text: {
-              en: "Have a robot that does your homework but sometimes gets it wrong\n— or —\nDo all homework yourself but finish in half the time",
-              de: "Einen Roboter haben, der deine Hausaufgaben macht, aber manchmal Fehler einbaut\n— oder —\nAlle Hausaufgaben selbst machen, aber in der halben Zeit fertig sein",
-            }, age: "all",
-          },
-          {
-            text: {
-              en: "Invent something that makes people laugh every day\n— or —\nInvent something that saves one person's life once",
-              de: "Etwas erfinden, das Menschen jeden Tag zum Lachen bringt\n— oder —\nEtwas erfinden, das einmal einem Menschen das Leben rettet",
-            }, age: "all",
-          },
-          {
-            text: {
-              en: "Have a bike that drives itself but only at walking speed\n— or —\nA skateboard that goes super fast but you can't steer it",
-              de: "Ein Fahrrad haben, das von selbst fährt, aber nur im Schritttempo\n— oder —\nEin Skateboard, das super schnell fährt, aber nicht lenkbar ist",
-            }, age: "all",
-          },
-        ],
-      },
-      {
-        id: "what-am-i",
-        title: { en: "What Am I?", de: "Was bin ich?" },
-        subtitle: { en: "Engineering Edition", de: "Engineering-Edition" },
-        type: "deck",
-        meta: {
-          size: { en: "3–15", de: "3–15" },
-          time: { en: "5–10 min", de: "5–10 Min" },
-          materials: { en: "nothing", de: "nichts" },
-        },
-        tags: ["break", "waiting", "team builder"],
-        setup: {
-          en: "Draw a card and keep the answer secret. For younger kids, announce the category (machines and inventions).",
-          de: "Zieh eine Karte und halte die Antwort geheim. Bei jüngeren Kindern: Sag die Kategorie an (Maschinen und Erfindungen).",
-        },
-        how: {
-          en: "Kids ask yes/no questions to guess what you are. Maximum 20 questions. Whoever guesses correctly picks the next round.",
-          de: "Die Kinder stellen Ja/Nein-Fragen, um zu erraten, was du bist. Maximal 20 Fragen. Wer richtig rät, wählt die nächste Runde.",
-        },
-        tip: {
-          en: "Engineering twist — only allow machines and inventions.",
-          de: "Engineering-Variante — nur Maschinen und Erfindungen erlaubt.",
-        },
-        prompts: [
-          {
-            text: { en: "A traffic light", de: "Eine Ampel" },
-            hint: {
-              en: "I have three colors and I tell you when to stop",
-              de: "Ich habe drei Farben und sage dir, wann du stehen bleiben musst",
-            }, age: "6-8",
-          },
-          {
-            text: { en: "A bridge", de: "Eine Brücke" },
-            hint: {
-              en: "I help you cross something you can't walk through",
-              de: "Ich helfe dir, etwas zu überqueren, durch das du nicht gehen kannst",
-            }, age: "6-8",
-          },
-          {
-            text: { en: "An algorithm", de: "Ein Algorithmus" },
-            hint: {
-              en: "I'm a set of steps that solves a problem the same way every time",
-              de: "Ich bin eine Folge von Schritten, die ein Problem jedes Mal gleich löst",
-            }, age: "9-12",
-          },
-          {
-            text: { en: "A gear", de: "Ein Zahnrad" },
-            hint: {
-              en: "I have teeth but I don't eat. I spin to make other things move",
-              de: "Ich habe Zähne, aber ich esse nicht. Ich drehe mich, damit andere Dinge sich bewegen",
-            }, age: "9-12",
-          },
-          {
-            text: { en: "Wi-Fi", de: "WLAN" },
-            hint: {
-              en: "You can't see, touch, or hear me — but you get very upset when I'm gone",
-              de: "Du kannst mich nicht sehen, anfassen oder hören — aber du bist sehr sauer, wenn ich weg bin",
-            }, age: "all",
-          },
-          {
-            text: { en: "A battery", de: "Eine Batterie" },
-            hint: {
-              en: "I store something invisible and share it when you need me, but I get tired",
-              de: "Ich speichere etwas Unsichtbares und teile es, wenn du mich brauchst — aber ich werde müde",
-            }, age: "all",
-          },
-        ],
-      },
-      {
-        id: "open-questions",
-        title: { en: "Open Questions", de: "Offene Fragen" },
-        type: "deck",
-        meta: {
-          size: { en: "any", de: "beliebig" },
-          time: { en: "3–10 min", de: "3–10 Min" },
-          materials: { en: "nothing", de: "nichts" },
-        },
-        tags: ["break", "get-to-know", "cooldown", "waiting"],
-        setup: {
-          en: "Nothing to prepare. Sit in a circle if you can.",
-          de: "Nichts vorzubereiten. Wenn möglich, setzt euch in einen Kreis.",
-        },
-        how: {
-          en: "Draw a card, read the question aloud. Everyone answers — around the circle or popcorn style. No wrong answers. Follow up with \"why?\" to keep it going.",
-          de: "Zieh eine Karte und lies die Frage vor. Alle antworten — reihum oder kreuz und quer. Es gibt keine falschen Antworten. Hak mit einem \"Warum?\" nach.",
-        },
-        tip: {
-          en: "Great for quieter moments. Let kids take their time — silence is ok.",
-          de: "Super für ruhigere Momente. Lass den Kindern Zeit — Stille ist okay.",
-        },
-        prompts: [
-          {
-            text: {
-              en: "What object would you like to be for 24 hours and why?",
-              de: "Welcher Gegenstand wärst du gern für 24 Stunden — und warum?",
-            }, age: "all",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: "energizer",
-    title: { en: "Energizers", de: "Energizer" },
-    desc: { en: "Wake up, get moving.", de: "Aufwachen, in Bewegung kommen." },
-    color: COLOR.red,
-    games: [{
-      id: "human-robot",
-      title: { en: "Human Robot", de: "Mensch-Roboter" },
-      type: "activity",
-      meta: {
-        size: { en: "pairs", de: "Paare" },
-        time: { en: "3–5 min", de: "3–5 Min" },
-        materials: { en: "nothing", de: "nichts" },
-      },
-      tags: ["in-class", "energy burn", "team builder"], age: "all",
-      setup: {
-        en: "Kids pair up. Set up a simple obstacle or a target to navigate to.",
-        de: "Die Kinder bilden Paare. Bau ein kleines Hindernis auf oder wähle ein Ziel, das angesteuert wird.",
-      },
-      how: {
-        en: "One kid is the \"programmer\", the other is the \"robot\". The programmer gives movement commands: forward 3 steps, turn left, pick up. The robot follows ONLY exact commands — nothing more, nothing less. Swap roles after 2 minutes.",
-        de: "Ein Kind ist Programmierer:in, das andere der Roboter. Es gibt Bewegungsbefehle: drei Schritte vor, links drehen, aufheben. Der Roboter befolgt NUR exakte Befehle — nicht mehr, nicht weniger. Nach 2 Minuten werden die Rollen getauscht.",
-      },
-      tip: {
-        en: "Directly teaches programming logic. \"The robot did the wrong thing\" — \"No, your code had a bug!\"",
-        de: "Vermittelt direkt Programmierlogik. \"Der Roboter hat das Falsche gemacht\" — \"Nein, dein Code hatte einen Bug!\"",
-      },
-    }],
-  },
-  {
-    id: "focus",
-    title: { en: "Calm-down / Focus", de: "Ruhe & Fokus" },
-    desc: { en: "Reset attention, create quiet.", de: "Aufmerksamkeit zurückholen, Ruhe schaffen." },
-    color: COLOR.blue,
-    games: [
-      {
-        id: "silent-countdown",
-        title: { en: "Silent Countdown", de: "Stiller Countdown" },
-        type: "activity",
-        meta: {
-          size: { en: "4+", de: "4+" },
-          time: { en: "2–3 min", de: "2–3 Min" },
-          materials: { en: "nothing", de: "nichts" },
-        },
-        tags: ["focus reset", "transition", "cooldown"], age: "all",
-        setup: {
-          en: "The group stands or sits so everyone can hear each other. Nothing else to prepare.",
-          de: "Die Gruppe steht oder sitzt so, dass alle einander hören. Sonst nichts vorzubereiten.",
-        },
-        how: {
-          en: "The group counts to 20 — one person at a time, no set order, no signals. If two people speak at the same time, restart from 1. Eyes closed makes it harder. Track the group's best score across camp days.",
-          de: "Die Gruppe zählt bis 20 — immer nur eine Person, keine feste Reihenfolge, keine Zeichen. Sprechen zwei gleichzeitig, geht es zurück auf 1. Mit geschlossenen Augen wird es schwieriger. Haltet den Gruppenrekord über die Camp-Tage fest.",
-        },
-        tip: {
-          en: "Perfect post-lunch reset. Gets quiet fast. Kids love beating their record.",
-          de: "Perfekter Reset nach dem Mittagessen. Wird schnell leise. Kinder lieben es, ihren Rekord zu knacken.",
-        },
-      },
-      {
-        id: "clap-pattern",
-        title: { en: "Clap Pattern", de: "Klatsch-Muster" },
-        type: "activity",
-        meta: {
-          size: { en: "any", de: "beliebig" },
-          time: { en: "1–2 min", de: "1–2 Min" },
-          materials: { en: "nothing", de: "nichts" },
-        },
-        tags: ["focus reset", "transition"], age: "all",
-        setup: {
-          en: "Nothing to prepare.",
-          de: "Nichts vorzubereiten.",
-        },
-        how: {
-          en: "Clap a rhythm pattern. The group repeats it. Each round gets more complex. Double use as your attention signal: you clap a pattern, kids stop what they're doing and repeat it back.",
-          de: "Klatsche einen Rhythmus vor. Die Gruppe wiederholt ihn. Jede Runde wird komplexer. Doppelnutzen als Aufmerksamkeitssignal: Du klatschst ein Muster, die Kinder stoppen und klatschen es zurück.",
-        },
-        tip: {
-          en: "Establish this Day 1 as YOUR signal. By Day 3 you never need to raise your voice.",
-          de: "Etabliere das an Tag 1 als DEIN Signal. Ab Tag 3 musst du nie wieder laut werden.",
-        },
-      },
-    ],
-  },
-  {
-    id: "team",
-    title: { en: "Team / Cooperation", de: "Team & Kooperation" },
-    desc: { en: "Communication, trust, working together.", de: "Kommunikation, Vertrauen, Zusammenarbeit." },
-    color: COLOR.green,
-    games: [{
-      id: "storytelling-chain",
-      title: { en: "Storytelling Chain", de: "Geschichten-Kette" },
-      type: "activity",
-      meta: {
-        size: { en: "3+", de: "3+" },
-        time: { en: "3–8 min", de: "3–8 Min" },
-        materials: { en: "nothing", de: "nichts" },
-      },
-      tags: ["break", "waiting", "cooldown"], age: "all",
-      setup: {
-        en: "Sit in a circle. Agree on the starting sentence.",
-        de: "Setzt euch in einen Kreis. Einigt euch auf den Startsatz.",
-      },
-      how: {
-        en: "Start with: \"I built a robot that…\". The next kid adds one sentence. Keep going around the circle. Engineering version: each addition must include a technical element — a sensor, a material, a mechanism.",
-        de: "Beginne mit: \"Ich habe einen Roboter gebaut, der …\". Das nächste Kind ergänzt einen Satz, immer weiter im Kreis. Engineering-Version: Jede Ergänzung braucht ein technisches Element — einen Sensor, ein Material, einen Mechanismus.",
-      },
-      tip: {
-        en: "Shy kids can pass once but they're next after. Dominant kids get a strict one-sentence limit.",
-        de: "Schüchterne Kinder dürfen einmal passen, sind danach aber dran. Dominante Kinder bekommen ein striktes Ein-Satz-Limit.",
-      },
-    }],
-  },
-  {
-    id: "gettoknow",
-    title: { en: "Get-to-know", de: "Kennenlernen" },
-    desc: { en: "First encounters, learning names.", de: "Erstes Kennenlernen, Namen lernen." },
-    color: COLOR.purple,
-    games: [],
-  },
-];
 
 /* ═══ LANGUAGE ═══ */
 const LangCtx = createContext("de");
@@ -594,12 +319,19 @@ function App() {
   const [catId, setCatId] = useState(null);
   const [gameId, setGameId] = useState(null);
 
+  /* content: null = loading, [] and up = loaded; loadError switches to the error view */
+  const [categories, setCategories] = useState(null);
+  const [loadError, setLoadError] = useState(false);
+  useEffect(() => {
+    loadContent().then(setCategories).catch(e => { console.error(e); setLoadError(true); });
+  }, []);
+
   useEffect(() => {
     try { localStorage.setItem("tb-lang", lang); } catch (e) {}
     document.documentElement.lang = lang;
   }, [lang]);
 
-  const cat = CATEGORIES.find(c => c.id === catId);
+  const cat = categories && categories.find(c => c.id === catId);
   const game = cat && cat.games.find(g => g.id === gameId);
 
   const goHome = () => { setView("home"); setCatId(null); setGameId(null); };
@@ -650,10 +382,21 @@ function App() {
           </div>
         </header>
 
-        {view === "home" && (
+        {loadError && (
+          <div className="fade-in" style={{ padding: "40px 0", textAlign: "center" }}>
+            <p style={{ fontFamily: FONT.serif, fontSize: TYPE.body, color: COLOR.body, lineHeight: 1.7, marginBottom: 24 }}>{ui("loadError")}</p>
+            <Btn onClick={() => window.location.reload()}>{ui("retry")}</Btn>
+          </div>
+        )}
+
+        {!loadError && categories === null && (
+          <p style={{ fontFamily: FONT.mono, fontSize: TYPE.label, letterSpacing: "0.12em", textTransform: "uppercase", color: COLOR.faint, padding: "40px 0", textAlign: "center" }}>{ui("loading")}</p>
+        )}
+
+        {!loadError && categories && view === "home" && (
           <div className="fade-in">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              {CATEGORIES.map(c => {
+              {categories.map(c => {
                 const count = c.games.length;
                 const isEmpty = count === 0;
                 return (

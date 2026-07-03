@@ -5,6 +5,7 @@ camps and classes: break games, energizers, focus and team activities — with
 rules, tips, and shuffled prompt cards.
 
 - **Live site:** https://game-plattform.netlify.app
+- **New here? Start with** [HOW-IT-WORKS.md](HOW-IT-WORKS.md) — the whole setup in plain language
 - **Plan:** see [PLAN.md](PLAN.md)
 - **Design rules:** see DESIGN.md (added in build step 4)
 
@@ -15,6 +16,10 @@ Game content lives in Supabase and is edited by the core team —
 either in the app's edit mode or the Supabase dashboard. Content
 changes are live immediately; code changes deploy automatically
 (~1 min) whenever this repository changes.
+
+The database structure (tables, security rules, original content) is
+documented in [supabase/setup.sql](supabase/setup.sql) — that file can
+rebuild the whole database in a fresh Supabase project if ever needed.
 
 ## Maintaining
 

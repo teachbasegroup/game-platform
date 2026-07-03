@@ -5,6 +5,31 @@ One entry per work session. Update this with every substantial change.
 
 ---
 
+## 2026-07-03 — Content moves to the database (Supabase)
+
+- All game content now lives in **Supabase** instead of inside the code:
+  three tables (`categories` → `games` → `cards`), every text in EN and DE,
+  each game/card with a **draft/published** status so half-finished content
+  stays invisible to teachers.
+- Security via database rules (RLS): anonymous visitors can only *read
+  published* rows; changing anything requires a team login (the basis for
+  the edit mode, next step).
+- `supabase/setup.sql` holds the whole database — structure, security rules,
+  and all content migrated out of `index.html`. Running it once in a fresh
+  Supabase project rebuilds everything.
+- The app fetches content on load and shows proper loading/error states.
+  Verified in a headless browser against a simulated database: home,
+  category, deck player, and the error screen all render correctly.
+- Detours worth remembering: newer Supabase projects grant no table access
+  by default (fixed with explicit grants, now part of setup.sql), and the SQL
+  editor was briefly pointed at a wrong/empty second project — if table counts
+  ever look wrong, check the project ID in the browser address bar first.
+- Wired the project URL + anon key into `index.html`, click-tested the real
+  app against the real database, deployed. The site now runs on Supabase:
+  content edits in the dashboard are live on next page load.
+- Added `HOW-IT-WORKS.md` — the whole setup in plain language for the team.
+  (Deeper technical companion lives as a Claude artifact, "Under the hood".)
+
 ## 2026-07-02 (evening) — Bilingual app, structured instructions, design rules
 
 - Every text in the app now exists in **English and German** (du-form). Language
@@ -51,5 +76,6 @@ One entry per work session. Update this with every substantial change.
 
 ---
 
-**Next:** Supabase database (content moves out of the code), then the in-app
-edit mode for the team, then a DeepL auto-translate button for new content.
+**Next:** paste Supabase credentials + run setup.sql (see 2026-07-03 entry),
+then the in-app edit mode for the team, then a DeepL auto-translate button
+for new content.
