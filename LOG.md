@@ -19,6 +19,10 @@ One entry per work session. Update this with every substantial change.
 - Database changes live in `supabase/migration-age-bands-and-new-games.sql`
   (run once in the SQL editor); `setup.sql` updated to match, so a fresh
   rebuild still produces the current state.
+- Migration ran (first attempt failed on constraint order — fixed: remap
+  data before adding new rules). Verified: 15 games, 24 cards, no old age
+  values, no empty categories. Edit mode confirmed working by the team.
+  Remaining from this session: team reviews the new games' wording.
 
 ## 2026-07-03 (later) — Edit mode
 
