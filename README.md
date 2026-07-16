@@ -5,8 +5,6 @@ camps and classes: break games, energizers, focus and team activities — with
 rules, tips, and shuffled prompt cards.
 
 - **Live site:** https://game-plattform.netlify.app
-- **Plan:** see [PLAN.md](PLAN.md)
-- **Design rules:** see DESIGN.md (added in build step 4)
 
 ## How it works
 
