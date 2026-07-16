@@ -5,7 +5,6 @@ camps and classes: break games, energizers, focus and team activities — with
 rules, tips, and shuffled prompt cards.
 
 - **Live site:** https://game-plattform.netlify.app
-- **New here? Start with** [HOW-IT-WORKS.md](HOW-IT-WORKS.md) — the whole setup in plain language
 - **Plan:** see [PLAN.md](PLAN.md)
 - **Design rules:** see DESIGN.md (added in build step 4)
 
@@ -24,5 +23,4 @@ rebuild the whole database in a fresh Supabase project if ever needed.
 ## Maintaining
 
 - **Content** (games, cards, translations): use the app's edit mode. No coding.
-- **Features/design**: open this repo with Claude Code and describe the change.
-  Read PLAN.md and DESIGN.md first.
+- **Features/design**: edit `index.html` directly, following PLAN.md and DESIGN.md.
